@@ -1,0 +1,30 @@
+From: NHS Jobs <noreply@jobs.example.nhs.uk>
+Subject: 3 new jobs match your saved search "data analyst"
+
+Hello,
+
+We found 3 new jobs that match your saved search.
+
+Information Analyst
+Northshire Community Health NHS Foundation Trust
+Northtown
+Band 5 | £31,049 to £37,796 a year
+Closing date: 19 October 2026
+View job: https://www.jobs.nhs.uk/candidate/jobadvert/342-INF-2026-118
+
+Senior Systems Analyst
+Eastmoor Hospitals NHS Trust
+Eastmoor General Hospital
+Band 6 | £38,682 to £46,580 a year
+Closing date: 24 October 2026
+View job: https://www.jobs.nhs.uk/candidate/jobadvert/C9241-26-0771
+
+Performance and Reporting Officer
+Westvale Integrated Care Board
+Hybrid, Westvale
+Band 4 | £26,530 to £29,114 a year
+Closing date: 15 October 2026
+View job: https://www.jobs.nhs.uk/candidate/jobadvert/D1102-26-0093
+
+You are receiving this email because you created a saved search on NHS Jobs.
+Manage your saved searches: https://www.jobs.nhs.uk/candidate/searches

@@ -1,12 +1,16 @@
 import type { Metadata } from "next";
-import { EmptyState } from "@/components/empty-state";
+import { AdvertPanel } from "./advert-panel";
+import { AlertPanel } from "./alert-panel";
 
 export const metadata: Metadata = { title: "Add jobs · Job Search Tracker" };
+// Reading an advert with Claude can take up to a minute.
+export const maxDuration = 120;
 
 export default function AddJobsPage() {
   return (
-    <EmptyState title="Add jobs">
-      Paste an advert or a job alert email to start tracking. This page arrives in milestone 2.
-    </EmptyState>
+    <div className="grid items-start gap-3.5 lg:grid-cols-2">
+      <AdvertPanel />
+      <AlertPanel />
+    </div>
   );
 }

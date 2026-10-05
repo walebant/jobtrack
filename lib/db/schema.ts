@@ -10,6 +10,7 @@ import {
   pgEnum,
   pgPolicy,
   pgTable,
+  primaryKey,
   smallint,
   text,
   timestamp,
@@ -222,6 +223,28 @@ export const prepQuestions = pgTable(
     jobRef(t, "prep_questions_job_fk"),
     index("prep_questions_job_idx").on(t.jobId, t.position),
     ownerOnly("prep_questions", t.userId),
+  ],
+);
+
+// AI calls per user per UK day. Users may read their own count but never write it:
+// only the server (adminDb) increments it, so the daily limit cannot be reset from the API.
+export const aiUsage = pgTable(
+  "ai_usage",
+  {
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => authUsers.id, { onDelete: "cascade" }),
+    day: date("day").notNull().default(sql`(now() at time zone 'Europe/London')::date`),
+    calls: integer("calls").notNull().default(0),
+  },
+  (t) => [
+    primaryKey({ columns: [t.userId, t.day] }),
+    pgPolicy("ai_usage_owner_select", {
+      as: "permissive",
+      for: "select",
+      to: authenticatedRole,
+      using: sql`${t.userId} = (select auth.uid())`,
+    }),
   ],
 );
 

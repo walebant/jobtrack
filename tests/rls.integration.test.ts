@@ -6,7 +6,8 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { adminDb, withUser, type JwtClaims } from "@/lib/db";
-import { fitScores, jobs, jobStatusHistory, profiles } from "@/lib/db/schema";
+import { consumeAiCall } from "@/lib/ai/usage";
+import { aiUsage, fitScores, jobs, jobStatusHistory, profiles } from "@/lib/db/schema";
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -92,9 +93,28 @@ describe.skipIf(!ready)("row level security", { timeout: 30_000 }, () => {
     expect(history.map((h) => h.status)).toEqual(["saved", "submitted"]);
   });
 
+  it("lets users read their AI count but never change it, and stops at the limit", async () => {
+    process.env.AI_DAILY_LIMIT = "2";
+    expect(await consumeAiCall(a.sub)).toBe(1);
+    expect(await consumeAiCall(a.sub)).toBe(2);
+    await expect(consumeAiCall(a.sub)).rejects.toMatchObject({ code: "limit" });
+    delete process.env.AI_DAILY_LIMIT;
+
+    const own = await withUser(a, (tx) => tx.select().from(aiUsage));
+    expect(own.map((r) => r.calls)).toEqual([2]);
+    expect(await withUser(b, (tx) => tx.select().from(aiUsage))).toHaveLength(0);
+
+    // Writes are refused (no policy) or silently match nothing.
+    const reset = await withUser(a, (tx) => tx.update(aiUsage).set({ calls: 0 }).returning());
+    expect(reset).toHaveLength(0);
+    await expect(withUser(a, (tx) => tx.insert(aiUsage).values({ userId: a.sub, day: "2000-01-01", calls: 0 }))).rejects.toThrow();
+    const cleared = await withUser(a, (tx) => tx.delete(aiUsage).returning());
+    expect(cleared).toHaveLength(0);
+  });
+
   it("gives signed-out API callers nothing", async () => {
     const anon = createClient(url!, anonKey!, { auth: { persistSession: false } });
-    for (const table of ["profiles", "jobs", "job_status_history", "fit_scores", "drafts", "prep_questions", "evidence"]) {
+    for (const table of ["profiles", "jobs", "job_status_history", "fit_scores", "drafts", "prep_questions", "evidence", "ai_usage"]) {
       const { data } = await anon.from(table).select("*");
       expect(data ?? []).toHaveLength(0);
     }

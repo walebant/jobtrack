@@ -1,0 +1,59 @@
+Job summary
+Information Analyst
+Northshire Community Health NHS Foundation Trust
+
+Date posted: 28 September 2026
+Pay scheme: Agenda for change
+Band: Band 5
+Salary: £31,049 to £37,796 a year per annum, pro rata
+Contract: Permanent
+Working pattern: Full-time, Flexible working
+Reference number: 342-INF-2026-118
+Job locations: Northshire House, Riverside Way, Northtown, NT4 2BX
+Closing date: 19 October 2026
+
+Job overview
+The Business Intelligence team is looking for an Information Analyst to produce accurate, timely reports for community services. You will build and maintain dashboards, respond to ad hoc data requests and support national data submissions.
+
+Main duties of the job
+- Extract, clean and analyse data from the patient administration system and other sources using SQL.
+- Build and maintain Power BI dashboards for operational and clinical managers.
+- Support statutory returns such as the Community Services Data Set (CSDS).
+- Check data quality and work with services to correct recording errors.
+
+Working for our organisation
+We are a community trust serving 600,000 people. We offer hybrid working and a generous training budget.
+
+Person specification
+
+Qualifications
+Essential criteria
+- Degree in a numerate subject, or equivalent experience
+Desirable criteria
+- Microsoft Power BI certification (PL-300)
+
+Experience
+Essential criteria
+- Experience of writing SQL queries to extract and combine data
+- Experience of producing reports for non-technical audiences
+- Experience of checking and improving data quality
+Desirable criteria
+- Experience of working with NHS data sets or national submissions
+- Experience of building dashboards in Power BI or Tableau
+
+Skills and knowledge
+Essential criteria
+- Advanced Excel skills, including pivot tables and lookups
+- Good written and verbal communication
+Desirable criteria
+- Knowledge of information governance and the Data Protection Act 2018
+
+UK Registration
+Applicants must have current UK professional registration. For further information please see NHS Careers website.
+
+Certificate of Sponsorship
+Applications from job seekers who require current Skilled worker sponsorship to work in the UK are welcome and will be considered alongside all other applications.
+
+Employer details
+Northshire Community Health NHS Foundation Trust
+Contact: Priya Shah, BI Manager, priya.shah@example.nhs.uk
