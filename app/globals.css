@@ -1,0 +1,137 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-public-sans), "Segoe UI", system-ui, -apple-system, sans-serif;
+  --font-heading: var(--font-bricolage), "Segoe UI", system-ui, sans-serif;
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  /* Green, amber and red: only for fit scores and closing dates */
+  --color-good: var(--good);
+  --color-good-bg: var(--good-bg);
+  --color-mid: var(--mid);
+  --color-mid-bg: var(--mid-bg);
+  --color-bad: var(--bad);
+  --color-bad-bg: var(--bad-bg);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+/* Palette from reference/job-tracker.html */
+:root {
+  --background: #eef1f4;
+  --foreground: #16212e;
+  --card: #ffffff;
+  --card-foreground: #16212e;
+  --popover: #ffffff;
+  --popover-foreground: #16212e;
+  --primary: #24456b;
+  --primary-foreground: #ffffff;
+  --secondary: #e2e8f0;
+  --secondary-foreground: #16212e;
+  --muted: #e2e8f0;
+  --muted-foreground: #5a6676;
+  --accent: #e2e8f0;
+  --accent-foreground: #16212e;
+  --destructive: #b3261e;
+  --border: #d6dce3;
+  --input: #d6dce3;
+  --ring: #24456b;
+  --good: #1e7b4f;
+  --good-bg: #ddf1e6;
+  --mid: #a26100;
+  --mid-bg: #fbebcf;
+  --bad: #b3261e;
+  --bad-bg: #f8dedc;
+  --radius: 0.75rem;
+}
+
+.dark {
+  --background: #10161d;
+  --foreground: #e7ecf2;
+  --card: #18212b;
+  --card-foreground: #e7ecf2;
+  --popover: #18212b;
+  --popover-foreground: #e7ecf2;
+  --primary: #8db4e2;
+  --primary-foreground: #0e1620;
+  --secondary: #223040;
+  --secondary-foreground: #e7ecf2;
+  --muted: #223040;
+  --muted-foreground: #9aa6b4;
+  --accent: #223040;
+  --accent-foreground: #e7ecf2;
+  --destructive: #f2928b;
+  --border: #2b3744;
+  --input: #2b3744;
+  --ring: #8db4e2;
+  --good: #6fd3a1;
+  --good-bg: #16352a;
+  --mid: #f2b661;
+  --mid-bg: #3a2a10;
+  --bad: #f2928b;
+  --bad-bg: #3d1c1a;
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  html {
+    @apply font-sans;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-size: 15px;
+    line-height: 1.55;
+  }
+  h1,
+  h2,
+  h3 {
+    @apply font-heading;
+    line-height: 1.15;
+  }
+  :focus-visible {
+    outline: 3px solid var(--ring);
+    outline-offset: 2px;
+  }
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

@@ -1,0 +1,661 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Job Search Tracker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Public+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#EEF1F4; --surface:#FFFFFF; --ink:#16212E; --muted:#5A6676; --line:#D6DCE3;
+  --brand:#24456B; --brand-ink:#FFFFFF; --soft:#E2E8F0;
+  --good:#1E7B4F; --good-bg:#DDF1E6; --mid:#A26100; --mid-bg:#FBEBCF; --bad:#B3261E; --bad-bg:#F8DEDC;
+  --display:"Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --body:"Public Sans", "Segoe UI", system-ui, -apple-system, sans-serif;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#10161D; --surface:#18212B; --ink:#E7ECF2; --muted:#9AA6B4; --line:#2B3744;
+    --brand:#8DB4E2; --brand-ink:#0E1620; --soft:#223040;
+    --good:#6FD3A1; --good-bg:#16352A; --mid:#F2B661; --mid-bg:#3A2A10; --bad:#F2928B; --bad-bg:#3D1C1A;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#10161D; --surface:#18212B; --ink:#E7ECF2; --muted:#9AA6B4; --line:#2B3744;
+  --brand:#8DB4E2; --brand-ink:#0E1620; --soft:#223040;
+  --good:#6FD3A1; --good-bg:#16352A; --mid:#F2B661; --mid-bg:#3A2A10; --bad:#F2928B; --bad-bg:#3D1C1A;
+}
+*,*::before,*::after{box-sizing:inherit}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.55 var(--body)}
+h1,h2,h3{font-family:var(--display);line-height:1.15;margin:0}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:3px solid var(--brand);outline-offset:2px}
+.wrap{max-width:1180px;margin:0 auto;padding:16px}
+header.top{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:8px 0 14px}
+header.top h1{font-size:26px;font-weight:700;letter-spacing:-.01em}
+.storage-note{font-size:13px;color:var(--muted)}
+nav.tabs{display:flex;gap:4px;background:var(--soft);padding:4px;border-radius:12px;overflow-x:auto}
+nav.tabs button{border:0;background:transparent;padding:8px 14px;border-radius:9px;cursor:pointer;white-space:nowrap;font-weight:500;color:var(--muted)}
+nav.tabs button[aria-selected="true"]{background:var(--surface);color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.08)}
+main{padding-top:16px}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:18px}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.btn{border:1px solid var(--line);background:var(--surface);padding:8px 14px;border-radius:10px;cursor:pointer;font-weight:500}
+.btn:hover{border-color:var(--muted)}
+.btn.primary{background:var(--brand);color:var(--brand-ink);border-color:var(--brand)}
+.btn.danger{color:var(--bad)}
+.btn:disabled{opacity:.55;cursor:not-allowed}
+.btn.small{padding:5px 10px;font-size:13px}
+label.f{display:block;font-size:13px;font-weight:600;color:var(--muted);margin:12px 0 4px}
+input.t,select.t,textarea.t{width:100%;border:1px solid var(--line);background:var(--bg);border-radius:10px;padding:9px 11px}
+textarea.t{resize:vertical;min-height:120px;line-height:1.5}
+.muted{color:var(--muted)}
+.hint{font-size:13px;color:var(--muted);margin:6px 0 0}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:0 14px}
+
+/* Board */
+.toolbar{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:14px}
+.board{display:flex;gap:12px;overflow-x:auto;padding-bottom:8px;scroll-snap-type:x mandatory}
+.col{flex:0 0 250px;scroll-snap-align:start;background:var(--soft);border-radius:14px;padding:10px;min-height:120px}
+.col h3{font-size:15px;font-weight:600;font-family:var(--body);display:flex;justify-content:space-between;margin:2px 4px 10px}
+.col h3 span{color:var(--muted);font-weight:500}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:11px;padding:10px 11px;margin-bottom:8px;cursor:pointer;display:block;width:100%;text-align:left}
+.card:hover{border-color:var(--muted)}
+.card .ttl{font-weight:600;line-height:1.3}
+.card .emp{font-size:13px;color:var(--muted);margin-top:2px}
+.card .meta{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.chip{font-size:12px;padding:2px 8px;border-radius:999px;background:var(--soft);color:var(--ink);white-space:nowrap}
+.chip.good{background:var(--good-bg);color:var(--good)} .chip.mid{background:var(--mid-bg);color:var(--mid)} .chip.bad{background:var(--bad-bg);color:var(--bad)}
+.empty{padding:28px;text-align:center;color:var(--muted)}
+.tablewrap{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:14px}
+th,td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--line);white-space:nowrap}
+th{font-size:12px;color:var(--muted);font-weight:600}
+tr.click{cursor:pointer} tr.click:hover td{background:var(--soft)}
+
+/* Drawer */
+.scrim{position:fixed;inset:0;background:rgba(10,16,24,.45);display:none;z-index:20}
+.scrim.open{display:block}
+.drawer{position:fixed;top:0;right:0;bottom:0;width:min(760px,100%);background:var(--bg);z-index:21;transform:translateX(100%);transition:transform .22s ease;display:flex;flex-direction:column;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+.drawer.open{transform:none}
+@media (prefers-reduced-motion: reduce){.drawer{transition:none}}
+.dhead{padding:16px 18px 10px;background:var(--surface);border-bottom:1px solid var(--line)}
+.dhead .row{justify-content:space-between;align-items:flex-start;flex-wrap:nowrap}
+.dhead h2{font-size:21px;font-weight:700}
+.dtabs{display:flex;gap:2px;margin-top:12px;overflow-x:auto}
+.dtabs button{border:0;background:none;padding:7px 12px;border-bottom:2px solid transparent;cursor:pointer;color:var(--muted);font-weight:500;white-space:nowrap}
+.dtabs button[aria-selected="true"]{color:var(--ink);border-color:var(--brand)}
+.dbody{flex:1;overflow-y:auto;padding:16px 18px 40px}
+
+/* Fit score */
+.fit{display:grid;grid-template-columns:auto 1fr;gap:18px;align-items:center;margin-bottom:16px}
+.dial{width:112px;height:112px;border-radius:50%;display:grid;place-items:center;position:relative}
+.dial .num{font-family:var(--display);font-size:42px;font-weight:700;line-height:1}
+.dial .of{font-size:12px;color:var(--muted);text-align:center}
+.verdict{font-family:var(--display);font-size:22px;font-weight:700}
+.crit{border:1px solid var(--line);background:var(--surface);border-radius:10px;padding:10px 12px;margin-bottom:8px}
+.crit .ch{display:flex;gap:8px;align-items:flex-start;justify-content:space-between}
+.crit p{margin:6px 0 0;font-size:14px;color:var(--muted)}
+.section-h{font-size:16px;font-weight:700;margin:20px 0 8px}
+.out{white-space:pre-wrap}
+.status-line{font-size:13px;color:var(--muted);min-height:20px;margin-top:8px}
+.err{color:var(--bad)}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:9px 16px;border-radius:10px;font-size:14px;z-index:40;opacity:0;pointer-events:none;transition:opacity .2s}
+.toast.show{opacity:1}
+
+/* Stats */
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:16px}
+.stat{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px}
+.stat b{display:block;font-family:var(--display);font-size:30px;line-height:1.1}
+.stat span{font-size:13px;color:var(--muted)}
+.bars{display:flex;align-items:flex-end;gap:8px;height:150px;padding-top:10px}
+.bar{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;gap:4px;font-size:12px;color:var(--muted)}
+.bar i{display:block;width:100%;max-width:42px;background:var(--brand);border-radius:6px 6px 2px 2px;min-height:2px}
+.hbar{display:grid;grid-template-columns:110px 1fr 36px;gap:10px;align-items:center;margin:6px 0;font-size:14px}
+.hbar div{background:var(--soft);border-radius:6px;height:12px;overflow:hidden}
+.hbar div i{display:block;height:100%;background:var(--brand)}
+
+.ev{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-bottom:8px;background:var(--bg)}
+.found{display:flex;gap:10px;align-items:flex-start;padding:10px 0;border-bottom:1px solid var(--line)}
+.found input{margin-top:5px;width:18px;height:18px}
+.prepq{border:1px solid var(--line);border-radius:12px;background:var(--surface);padding:12px;margin-bottom:12px}
+.prepq .q{font-weight:600}
+@media (max-width:560px){ .wrap{padding:12px} header.top h1{font-size:22px} .fit{grid-template-columns:1fr;justify-items:start} }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <h1>Job Search Tracker</h1>
+    <span class="storage-note" id="storageNote">Loading your data…</span>
+  </header>
+  <nav class="tabs" role="tablist" id="mainTabs">
+    <button role="tab" data-tab="pipeline" aria-selected="true">Pipeline</button>
+    <button role="tab" data-tab="add" aria-selected="false">Add jobs</button>
+    <button role="tab" data-tab="profile" aria-selected="false">My profile</button>
+    <button role="tab" data-tab="stats" aria-selected="false">Stats</button>
+  </nav>
+  <main id="view"></main>
+</div>
+
+<div class="scrim" id="scrim"></div>
+<aside class="drawer" id="drawer" aria-hidden="true" role="dialog" aria-modal="true"></aside>
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+/* ---------- Constants ---------- */
+const STATUSES = [
+  ["saved","Saved"],["applying","Applying"],["submitted","Submitted"],["shortlisted","Shortlisted"],
+  ["interview","Interview"],["offer","Offer"],["rejected","Rejected"],["withdrawn","Withdrawn"]
+];
+const STATUS_LABEL = Object.fromEntries(STATUSES);
+const APPLIED = new Set(["submitted","shortlisted","interview","offer","rejected"]);
+const STYLE_RULES = "Write in simple, clear, natural UK English that sounds like a real person. Never use em dashes (the long dash). Use commas, full stops or 'and' instead. Avoid buzzwords and over-the-top language. Use first person.";
+
+/* ---------- State ---------- */
+const state = { tab:"pipeline", view:"board", jobs:[], profile:{cv:"",evidence:[],notes:""}, openId:null, dtab:"overview", found:[], loaded:false };
+let store = null;     // {mode, save(doc), remove(id)}
+let sampleFn = null;  // claude sample
+let downloads = null;
+const busy = {};
+
+/* ---------- Helpers ---------- */
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const uid = () => "job_" + Date.now().toString(36) + Math.random().toString(36).slice(2,7);
+const nowIso = () => new Date().toISOString();
+const noDash = s => String(s ?? "").replace(/\s*\u2014\s*/g, ", ").replace(/,\s*,/g, ",");
+function toast(msg){ const t=$("#toast"); t.textContent=msg; t.classList.add("show"); clearTimeout(toast._t); toast._t=setTimeout(()=>t.classList.remove("show"),2200); }
+function daysLeft(d){ if(!d) return null; const t=new Date(d+"T23:59:59"); if(isNaN(t)) return null; return Math.ceil((t-Date.now())/86400000); }
+function fmtDate(d){ if(!d) return ""; const t=new Date(d.length===10?d+"T12:00:00":d); return isNaN(t)?d:t.toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"numeric"}); }
+function scoreClass(s){ if(s==null) return ""; return s>=8?"good":s>=6?"mid":"bad"; }
+function aiError(e){
+  const c = e && e.code;
+  if(c==="not_granted") return "Claude was not allowed to run. Reopen the page and allow it to use AI features.";
+  if(c==="rate_limited") return "Too many requests at once. Wait a minute and try again.";
+  if(c==="invalid_json") return "Claude's reply could not be read. Try again.";
+  if(c==="prompt_too_large") return "This text is too long. Trim the advert and try again.";
+  if(c==="cancelled") return "Stopped.";
+  return "Something went wrong talking to Claude (" + (c||"unknown") + "). Try again.";
+}
+function needAI(){ if(!sampleFn){ toast("AI features are not available in this view."); return false;} return true; }
+
+/* ---------- Storage ---------- */
+function localStore(){
+  const KEY="jobtracker_v1";
+  const read=()=>{ try{ return JSON.parse(localStorage.getItem(KEY)||"{}"); }catch(e){ return {}; } };
+  const write=o=>{ try{ localStorage.setItem(KEY,JSON.stringify(o)); }catch(e){ toast("Could not save to this browser."); } };
+  const all=read(); ingest(Object.values(all));
+  return {
+    mode:"local",
+    async save(doc){ const o=read(); o[doc.id]=doc; write(o); ingest(Object.values(o)); },
+    async remove(id){ const o=read(); delete o[id]; write(o); ingest(Object.values(o)); }
+  };
+}
+function ingest(docs){
+  const jobs=[]; let profile=null;
+  for(const d of docs){ if(!d) continue; if(d.kind==="job") jobs.push(d); else if(d.kind==="profile") profile=d; }
+  jobs.sort((a,b)=>(b.createdAt||"").localeCompare(a.createdAt||""));
+  state.jobs=jobs;
+  if(profile) state.profile={cv:"",evidence:[],notes:"",...profile};
+  state.loaded=true;
+  render();
+}
+async function initStore(){
+  let db=null, user=null;
+  try{ [db,user]=await Promise.all([window.claude?.use("db"),window.claude?.use("user")]); }catch(e){}
+  let id=null;
+  if(db && user){ try{ id=await user.id(); }catch(e){} }
+  if(db && id){
+    const col=db.collection("data/users/"+id);
+    const queue={};
+    store={
+      mode:"db",
+      async save(doc){
+        const clean=JSON.parse(JSON.stringify(doc));
+        queue[doc.id]=(queue[doc.id]||Promise.resolve()).then(()=>col.doc(doc.id).set(clean)).catch(e=>{ toast("Save failed: "+(e.code||"error")); });
+        // optimistic update
+        if(doc.kind==="job"){ const i=state.jobs.findIndex(j=>j.id===doc.id); if(i>=0) state.jobs[i]=doc; else state.jobs.unshift(doc); }
+        else state.profile=doc;
+        return queue[doc.id];
+      },
+      async remove(docId){ state.jobs=state.jobs.filter(j=>j.id!==docId); render(); try{ await col.doc(docId).delete(); }catch(e){ toast("Delete failed."); } }
+    };
+    col.onSnapshot(snap=>ingest(snap.docs.map(d=>({...d.data(), id:d.id}))), e=>{ $("#storageNote").textContent="Sync stopped ("+e.code+"). Reload the page."; });
+    $("#storageNote").textContent="Saved to your Claude account, private to you";
+  } else {
+    store=localStore();
+    $("#storageNote").textContent="Saved in this browser only";
+  }
+}
+
+/* ---------- Mutations ---------- */
+function getJob(id){ return state.jobs.find(j=>j.id===id); }
+async function saveJob(job){ job.updatedAt=nowIso(); await store.save({...job}); render(); }
+async function setStatus(job,status){
+  if(job.status===status) return;
+  job.status=status; job.history=[...(job.history||[]),{status,at:nowIso()}];
+  if(status==="submitted" && !job.submittedAt) job.submittedAt=nowIso();
+  await saveJob(job); toast("Moved to "+STATUS_LABEL[status]);
+}
+async function saveProfile(){ await store.save({...state.profile, id:"profile", kind:"profile", updatedAt:nowIso()}); }
+function newJob(fields){
+  const t=nowIso();
+  return { id:uid(), kind:"job", status:"saved", history:[{status:"saved",at:t}], createdAt:t, updatedAt:t,
+    title:"",employer:"",band:"",salary:"",location:"",reference:"",closingDate:"",interviewDate:"",link:"",sponsorship:"unknown",
+    advert:"",essential:[],desirable:[],fit:null,statement:"",cvExperience:"",notes:"",contacts:"",prep:[], ...fields };
+}
+
+/* ---------- AI ---------- */
+function profileText(){
+  const p=state.profile;
+  let s="MASTER CV:\n"+(p.cv||"(not provided)").slice(0,20000);
+  if(p.evidence?.length){ s+="\n\nEVIDENCE BANK (real examples, use only these facts):\n"+p.evidence.map((e,i)=>`${i+1}. ${e.title} [${e.tags||""}]\n${e.story}`).join("\n\n").slice(0,20000); }
+  if(p.notes) s+="\n\nOTHER NOTES ABOUT ME:\n"+p.notes.slice(0,4000);
+  return s;
+}
+function jobText(j){
+  return `JOB: ${j.title} at ${j.employer}\nBand: ${j.band}\nSalary: ${j.salary}\nLocation: ${j.location}\n\nESSENTIAL CRITERIA:\n${(j.essential||[]).map(x=>"- "+x).join("\n")||"(none listed)"}\n\nDESIRABLE CRITERIA:\n${(j.desirable||[]).map(x=>"- "+x).join("\n")||"(none listed)"}\n\nFULL ADVERT:\n${(j.advert||"").slice(0,25000)}`;
+}
+const EXTRACT_SHAPE = `{"title":string,"employer":string,"band":string (e.g. "Band 5", or grade for councils),"salary":string,"location":string,"reference":string,"closingDate":"YYYY-MM-DD" or "","link":string,"sponsorship":"yes"|"no"|"unknown","essential":[string],"desirable":[string]}`;
+async function aiExtractAdvert(text){
+  return sampleFn.json(`You read UK job adverts (NHS Jobs, Trac, councils). Extract the details from the advert below.
+Reply with only one JSON object of this shape:
+${EXTRACT_SHAPE}
+Rules: essential and desirable are the person specification criteria, each one short and specific, copied in meaning. If the advert does not split them, put the clearly required ones in essential. sponsorship is "yes" only if the advert says sponsorship is possible, "no" if it says it is not. Today is ${new Date().toISOString().slice(0,10)}.
+
+ADVERT:
+${text.slice(0,60000)}`, {modelTier:"default"});
+}
+async function aiExtractAlert(text){
+  return sampleFn.json(`Below is a job alert email (for example from NHS Jobs, Trac or a council). List every job in it.
+Reply with only a JSON array of objects: {"title":string,"employer":string,"band":string,"salary":string,"location":string,"closingDate":"YYYY-MM-DD" or "","link":string}
+Use "" for anything not shown. Today is ${new Date().toISOString().slice(0,10)}.
+
+EMAIL:
+${text.slice(0,60000)}`, {modelTier:"quick"});
+}
+async function aiScore(j){
+  return sampleFn.json(`You are an NHS recruitment shortlister. Score how well this candidate fits the job, criterion by criterion, using only what the candidate's CV and evidence actually show. Be honest and strict, as a real shortlisting panel would be.
+
+${profileText()}
+
+${jobText(j)}
+
+Reply with only one JSON object:
+{"score":integer 1-10,"verdict":"apply"|"maybe"|"skip","summary":string (2-3 plain sentences),"criteria":[{"text":string,"type":"essential"|"desirable","rating":"met"|"partial"|"gap","evidence":string (which of the candidate's experience shows it, or what is missing and how to address it)}]}
+Include every essential and desirable criterion. Write in simple UK English with no em dashes.`, {modelTier:"default"});
+}
+
+/* ---------- Render: main ---------- */
+function render(){
+  document.querySelectorAll("#mainTabs button").forEach(b=>b.setAttribute("aria-selected", String(b.dataset.tab===state.tab)));
+  const v=$("#view");
+  if(!state.loaded){ v.innerHTML=`<div class="panel empty">Loading…</div>`; return; }
+  const keepScroll = document.activeElement && v.contains(document.activeElement) && /TEXTAREA|INPUT|SELECT/.test(document.activeElement.tagName);
+  if(!keepScroll || state.tab==="pipeline" || state.tab==="stats"){
+    if(state.tab==="pipeline") v.innerHTML=renderPipeline();
+    else if(state.tab==="add") v.innerHTML=renderAdd();
+    else if(state.tab==="profile") v.innerHTML=renderProfile();
+    else if(state.tab==="stats") v.innerHTML=renderStats();
+  }
+  if(state.openId) renderDrawer();
+}
+
+function jobCard(j){
+  const dl=daysLeft(j.closingDate);
+  let close="";
+  if(dl!=null && !APPLIED.has(j.status) && j.status!=="withdrawn"){
+    close = dl<0?`<span class="chip">Closed</span>`:`<span class="chip ${dl<=3?"bad":dl<=7?"mid":""}">${dl===0?"Closes today":dl===1?"Closes tomorrow":"Closes in "+dl+" days"}</span>`;
+  }
+  const iv = j.interviewDate && j.status==="interview" ? `<span class="chip good">Interview ${fmtDate(j.interviewDate)}</span>` : "";
+  const sc = j.fit?.score!=null ? `<span class="chip ${scoreClass(j.fit.score)}">Fit ${j.fit.score}/10</span>` : "";
+  return `<button class="card" data-open="${j.id}">
+    <div class="ttl">${esc(j.title||"Untitled job")}</div>
+    <div class="emp">${esc(j.employer)}${j.band?" · "+esc(j.band):""}</div>
+    <div class="meta">${sc}${close}${iv}</div></button>`;
+}
+function renderPipeline(){
+  const jobs=state.jobs;
+  const head=`<div class="toolbar">
+    <div class="row"><button class="btn ${state.view==="board"?"primary":""}" data-view="board">Board</button><button class="btn ${state.view==="list"?"primary":""}" data-view="list">List</button></div>
+    <button class="btn primary" data-goto="add">Add a job</button></div>`;
+  if(!jobs.length) return head+`<div class="panel empty"><h2 style="font-size:20px;margin-bottom:6px">No jobs yet</h2>Paste an advert or a job alert email to start tracking.<div style="margin-top:14px"><button class="btn primary" data-goto="add">Add your first job</button></div>${!state.profile.cv?`<p class="hint">Tip: add your CV in My profile first so jobs can be scored.</p>`:""}</div>`;
+  if(state.view==="list"){
+    const rows=jobs.map(j=>{ const dl=daysLeft(j.closingDate); return `<tr class="click" data-open="${j.id}"><td><b>${esc(j.title)}</b><div class="muted" style="font-size:13px">${esc(j.employer)}</div></td><td>${esc(j.band)}</td><td>${STATUS_LABEL[j.status]}</td><td>${j.fit?.score!=null?`<span class="chip ${scoreClass(j.fit.score)}">${j.fit.score}/10</span>`:"–"}</td><td>${j.closingDate?fmtDate(j.closingDate)+(dl!=null&&dl>=0&&dl<=3&&!APPLIED.has(j.status)?` <span class="chip bad">${dl}d</span>`:""):"–"}</td><td>${fmtDate(j.updatedAt)}</td></tr>`; }).join("");
+    return head+`<div class="panel tablewrap" style="padding:6px 10px"><table><thead><tr><th>Job</th><th>Band</th><th>Status</th><th>Fit</th><th>Closing date</th><th>Updated</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+  }
+  const cols=STATUSES.map(([k,l])=>{ const list=jobs.filter(j=>j.status===k); if(k==="saved") list.sort((a,b)=>(a.closingDate||"9").localeCompare(b.closingDate||"9")); return `<section class="col" aria-label="${l}"><h3>${l} <span>${list.length}</span></h3>${list.map(jobCard).join("")}</section>`; }).join("");
+  return head+`<div class="board">${cols}</div>`;
+}
+
+function renderAdd(){
+  const found = state.found.length ? `<div class="panel" style="margin-top:14px"><h2 style="font-size:18px">Jobs found in the email</h2>
+    ${state.found.map((f,i)=>`<label class="found"><input type="checkbox" data-found="${i}" ${f.pick?"checked":""}><div><b>${esc(f.title)}</b><div class="muted" style="font-size:14px">${esc([f.employer,f.band,f.salary,f.location].filter(Boolean).join(" · "))}${f.closingDate?" · Closes "+fmtDate(f.closingDate):""}</div></div></label>`).join("")}
+    <p class="hint">Alert emails rarely include the full person specification. Once saved, open each job and paste the full advert to score it.</p>
+    <div class="row" style="margin-top:12px"><button class="btn primary" id="addFound">Save selected jobs</button><button class="btn" id="clearFound">Clear</button></div></div>` : "";
+  return `<div class="grid2" style="gap:14px">
+  <div class="panel"><h2 style="font-size:19px">Paste a job advert</h2>
+    <p class="hint">Copy the whole advert page from NHS Jobs, Trac or a council site, including the person specification.</p>
+    <label class="f" for="advertIn">Advert text</label><textarea class="t" id="advertIn" style="min-height:220px" placeholder="Paste the full advert here"></textarea>
+    <label class="f" for="advertLink">Link to the advert (optional)</label><input class="t" id="advertLink" placeholder="https://www.jobs.nhs.uk/…">
+    <div class="row" style="margin-top:12px"><button class="btn primary" id="readAdvert">Read advert and save</button><button class="btn" id="manualAdd">Add manually instead</button></div>
+    <div class="status-line" id="advertStatus"></div></div>
+  <div class="panel"><h2 style="font-size:19px">Paste a job alert email</h2>
+    <p class="hint">Paste a whole alert email to pick out every job in it. Gmail checking can be added once your alerts reach your connected inbox.</p>
+    <label class="f" for="alertIn">Email text</label><textarea class="t" id="alertIn" style="min-height:220px" placeholder="Paste the alert email here"></textarea>
+    <div class="row" style="margin-top:12px"><button class="btn primary" id="readAlert">Find jobs in email</button></div>
+    <div class="status-line" id="alertStatus"></div></div>
+  </div>${found}`;
+}
+
+function renderProfile(){
+  const p=state.profile;
+  const ev=(p.evidence||[]).map((e,i)=>`<div class="ev"><div class="row" style="justify-content:space-between"><b>${esc(e.title)}</b><div class="row"><button class="btn small" data-editev="${i}">Edit</button><button class="btn small danger" data-delev="${i}">Remove</button></div></div>${e.tags?`<div class="meta" style="display:flex;gap:6px;flex-wrap:wrap;margin:6px 0">${e.tags.split(",").map(t=>t.trim()).filter(Boolean).map(t=>`<span class="chip">${esc(t)}</span>`).join("")}</div>`:""}<div class="out muted" style="font-size:14px">${esc(e.story)}</div></div>`).join("");
+  return `<div class="grid2" style="gap:14px;align-items:start">
+  <div class="panel"><h2 style="font-size:19px">Master CV</h2>
+    <p class="hint">Paste your full CV. Scoring and drafting use this, so keep it complete and up to date.</p>
+    <textarea class="t" id="cvIn" style="min-height:320px" placeholder="Paste your full CV here">${esc(p.cv)}</textarea>
+    <label class="f" for="notesIn">Anything else Claude should know</label>
+    <textarea class="t" id="notesIn" style="min-height:90px" placeholder="For example: roles you are targeting, training in progress">${esc(p.notes)}</textarea>
+    <div class="row" style="margin-top:12px"><button class="btn primary" id="saveProfile">Save profile</button></div></div>
+  <div class="panel"><h2 style="font-size:19px">Evidence bank</h2>
+    <p class="hint">Real examples of your work, written as Situation, Task, Action, Result. Statements and interview answers draw on these.</p>
+    <div id="evList" style="margin-top:12px">${ev||`<p class="muted">No examples yet.</p>`}</div>
+    <h3 class="section-h" id="evFormTitle">Add an example</h3>
+    <input type="hidden" id="evIdx" value="">
+    <label class="f" for="evTitle">Title</label><input class="t" id="evTitle" placeholder="For example: Built automated referral tool">
+    <label class="f" for="evTags">Skills it shows (comma separated)</label><input class="t" id="evTags" placeholder="Excel, automation, data quality">
+    <label class="f" for="evStory">The example</label><textarea class="t" id="evStory" placeholder="Situation, task, what you did, and the result (with numbers if you have them)"></textarea>
+    <div class="row" style="margin-top:12px"><button class="btn primary" id="saveEv">Save example</button><button class="btn" id="cancelEv">Clear</button></div></div>
+  </div>`;
+}
+
+function renderStats(){
+  const J=state.jobs;
+  if(!J.length) return `<div class="panel empty">Stats will appear once you start adding jobs.</div>`;
+  const applied=J.filter(j=>APPLIED.has(j.status)||j.submittedAt);
+  const reached=st=>J.filter(j=>(j.history||[]).some(h=>h.status===st)).length;
+  const short=J.filter(j=>(j.history||[]).some(h=>["shortlisted","interview","offer"].includes(h.status))).length;
+  const interviews=reached("interview"), offers=reached("offer");
+  const rate=applied.length?Math.round(short/applied.length*100):0;
+  const scored=J.filter(j=>j.fit?.score!=null);
+  const avg=scored.length?(scored.reduce((a,j)=>a+j.fit.score,0)/scored.length).toFixed(1):"–";
+  // weekly
+  const weeks=[]; const start=new Date(); start.setHours(0,0,0,0); start.setDate(start.getDate()-((start.getDay()+6)%7));
+  for(let i=7;i>=0;i--){ const s=new Date(start); s.setDate(s.getDate()-7*i); const e=new Date(s); e.setDate(e.getDate()+7); weeks.push({label:s.toLocaleDateString("en-GB",{day:"numeric",month:"short"}),n:applied.filter(j=>{const d=new Date(j.submittedAt||j.updatedAt);return d>=s&&d<e;}).length}); }
+  const maxW=Math.max(1,...weeks.map(w=>w.n));
+  // by band
+  const bands={}; for(const j of applied){ const b=(j.band||"Unknown").trim()||"Unknown"; bands[b]=bands[b]||{a:0,s:0}; bands[b].a++; if((j.history||[]).some(h=>["shortlisted","interview","offer"].includes(h.status))) bands[b].s++; }
+  const bandRows=Object.entries(bands).sort((a,b)=>b[1].a-a[1].a).map(([b,v])=>`<div class="hbar"><span>${esc(b)}</span><div><i style="width:${Math.round(v.s/v.a*100)}%"></i></div><span>${v.s}/${v.a}</span></div>`).join("");
+  const byStatus=STATUSES.map(([k,l])=>{const n=J.filter(j=>j.status===k).length; return `<div class="hbar"><span>${l}</span><div><i style="width:${Math.round(n/J.length*100)}%"></i></div><span>${n}</span></div>`;}).join("");
+  return `<div class="stats">
+    <div class="stat"><b>${J.length}</b><span>Jobs tracked</span></div>
+    <div class="stat"><b>${applied.length}</b><span>Applications sent</span></div>
+    <div class="stat"><b>${rate}%</b><span>Shortlist rate</span></div>
+    <div class="stat"><b>${interviews}</b><span>Interviews</span></div>
+    <div class="stat"><b>${offers}</b><span>Offers</span></div>
+    <div class="stat"><b>${avg}</b><span>Average fit score</span></div></div>
+  <div class="grid2" style="gap:14px">
+    <div class="panel"><h2 style="font-size:17px">Applications per week</h2><div class="bars">${weeks.map(w=>`<div class="bar"><span>${w.n||""}</span><i style="height:${w.n/maxW*100}%"></i><span>${w.label}</span></div>`).join("")}</div></div>
+    <div class="panel"><h2 style="font-size:17px">Shortlisted by band</h2>${bandRows||`<p class="muted">No applications sent yet.</p>`}</div>
+    <div class="panel"><h2 style="font-size:17px">Where your jobs are now</h2>${byStatus}</div>
+  </div>
+  <div class="row" style="margin-top:16px"><button class="btn" id="exportAll">Download backup</button></div>`;
+}
+
+/* ---------- Drawer ---------- */
+function openJob(id,tab){ state.openId=id; state.dtab=tab||"overview"; $("#scrim").classList.add("open"); const d=$("#drawer"); d.classList.add("open"); d.setAttribute("aria-hidden","false"); renderDrawer(true); }
+function closeJob(){ state.openId=null; $("#scrim").classList.remove("open"); const d=$("#drawer"); d.classList.remove("open"); d.setAttribute("aria-hidden","true"); }
+function renderDrawer(force){
+  const j=getJob(state.openId); const d=$("#drawer");
+  if(!j){ closeJob(); return; }
+  if(!force && d.contains(document.activeElement) && /TEXTAREA|INPUT|SELECT/.test(document.activeElement.tagName)) return;
+  const tabs=[["overview","Overview"],["fit","Fit score"],["drafts","Drafts"],["prep","Interview prep"],["advert","Advert"]];
+  d.innerHTML=`<div class="dhead"><div class="row"><div><h2>${esc(j.title||"Untitled job")}</h2><div class="muted">${esc([j.employer,j.band,j.salary].filter(Boolean).join(" · "))}</div></div><button class="btn small" id="closeD" aria-label="Close">Close</button></div>
+    <div class="row" style="margin-top:10px"><label class="muted" for="statusSel" style="font-size:13px">Status</label><select class="t" id="statusSel" style="width:auto;padding:6px 10px">${STATUSES.map(([k,l])=>`<option value="${k}" ${j.status===k?"selected":""}>${l}</option>`).join("")}</select>${j.link?`<a class="btn small" href="${esc(j.link)}" target="_blank" rel="noopener">Open advert</a>`:""}</div>
+    <div class="dtabs" role="tablist">${tabs.map(([k,l])=>`<button role="tab" data-dtab="${k}" aria-selected="${state.dtab===k}">${l}</button>`).join("")}</div></div>
+    <div class="dbody" id="dbody">${drawerBody(j)}</div>`;
+}
+function drawerBody(j){
+  if(state.dtab==="overview"){
+    const f=(k,l,ph="",type="text")=>`<div><label class="f" for="jf_${k}">${l}</label><input class="t" type="${type}" id="jf_${k}" data-field="${k}" value="${esc(j[k])}" placeholder="${ph}"></div>`;
+    return `<div class="grid2">${f("title","Job title")}${f("employer","Employer")}${f("band","Band or grade")}${f("salary","Salary")}${f("location","Location")}${f("reference","Reference number")}${f("closingDate","Closing date","","date")}${f("interviewDate","Interview date","","date")}
+      <div><label class="f" for="jf_sponsorship">Visa sponsorship</label><select class="t" id="jf_sponsorship" data-field="sponsorship">${["unknown","yes","no"].map(o=>`<option value="${o}" ${j.sponsorship===o?"selected":""}>${o==="unknown"?"Not stated":o==="yes"?"Offered":"Not offered"}</option>`).join("")}</select></div>${f("link","Link","https://")}</div>
+      <label class="f" for="jf_contacts">Contacts</label><textarea class="t" id="jf_contacts" data-field="contacts" style="min-height:70px" placeholder="Recruiting manager name, email, phone">${esc(j.contacts)}</textarea>
+      <label class="f" for="jf_notes">Notes</label><textarea class="t" id="jf_notes" data-field="notes" style="min-height:90px">${esc(j.notes)}</textarea>
+      <div class="row" style="margin-top:12px"><button class="btn primary" id="saveOverview">Save changes</button></div>
+      <h3 class="section-h">History</h3>${(j.history||[]).map(h=>`<div class="muted" style="font-size:14px">${fmtDate(h.at)}: ${STATUS_LABEL[h.status]||h.status}</div>`).join("")}
+      <div class="row" style="margin-top:24px"><button class="btn danger" id="deleteJob">Delete this job</button></div>`;
+  }
+  if(state.dtab==="fit"){
+    const noCrit=!(j.essential?.length||j.desirable?.length);
+    const pre = !state.profile.cv ? `<p class="err">Add your CV in My profile first, so the score is based on your real experience.</p>` : noCrit ? `<p class="hint">No person specification found for this job yet. Paste the full advert in the Advert tab for an accurate score.</p>` : "";
+    const btn=`<div class="row"><button class="btn primary" id="runScore" ${busy.score?"disabled":""}>${j.fit?"Score again":"Score this job"}</button></div><div class="status-line" id="scoreStatus">${busy.score?"Scoring. This can take up to a minute…":""}</div>`;
+    if(!j.fit) return pre+`<p>Check this job against your CV and evidence bank, criterion by criterion.</p>`+btn;
+    const fit=j.fit, cls=scoreClass(fit.score), col=`var(--${cls||"muted"})`;
+    const order={gap:0,partial:1,met:2};
+    const crit=[...(fit.criteria||[])].sort((a,b)=>(a.type===b.type?0:a.type==="essential"?-1:1)||order[a.rating]-order[b.rating]);
+    return pre+`<div class="fit"><div class="dial" style="background:conic-gradient(${col} ${fit.score*36}deg, var(--soft) 0)"><div style="position:absolute;inset:10px;border-radius:50%;background:var(--bg)"></div><div style="position:relative"><div class="num">${fit.score}</div><div class="of">out of 10</div></div></div>
+      <div><div class="verdict" style="color:${col}">${fit.verdict==="apply"?"Worth applying":fit.verdict==="maybe"?"Maybe":"Probably skip"}</div><p style="margin:6px 0 0">${esc(fit.summary)}</p></div></div>
+      ${crit.map(c=>`<div class="crit"><div class="ch"><span><span class="muted" style="font-size:12px">${c.type==="essential"?"Essential":"Desirable"}</span><br>${esc(c.text)}</span><span class="chip ${c.rating==="met"?"good":c.rating==="partial"?"mid":"bad"}">${c.rating==="met"?"Met":c.rating==="partial"?"Partly met":"Gap"}</span></div><p>${esc(c.evidence)}</p></div>`).join("")}
+      <p class="hint">Scored ${fmtDate(fit.at)}</p>`+btn;
+  }
+  if(state.dtab==="drafts"){
+    const box=(k,label,help)=>`<h3 class="section-h">${label}</h3><p class="hint" style="margin-top:-4px">${help}</p>
+      <textarea class="t" id="d_${k}" data-draft="${k}" style="min-height:${k==="statement"?340:240}px;margin-top:8px" placeholder="Click draft to start, or write your own">${esc(j[k])}</textarea>
+      <div class="row" style="margin-top:8px"><button class="btn primary" data-gen="${k}" ${busy[k]?"disabled":""}>${j[k]?"Draft again":"Draft it"}</button>${busy[k]?`<button class="btn" data-stop="${k}">Stop</button>`:""}<button class="btn" data-savedraft="${k}">Save edits</button><button class="btn" data-copy="${k}">Copy</button><button class="btn" data-dl="${k}">Download</button><span class="muted" style="font-size:13px" id="wc_${k}">${wc(j[k])}</span></div>
+      <div class="status-line" id="st_${k}"></div>`;
+    return (!state.profile.cv?`<p class="err">Add your CV in My profile first.</p>`:"")+
+      box("statement","Supporting statement","Written against the person specification, using only your real experience.")+
+      box("cvExperience","Tailored CV experience","Your work history reworded to match this job.");
+  }
+  if(state.dtab==="prep"){
+    const qs=j.prep||[];
+    return `<p>Practise questions written from this job's person specification. Type an answer and get feedback.</p>
+      <div class="row"><button class="btn primary" id="genPrep" ${busy.prep?"disabled":""}>${qs.length?"New set of questions":"Write practice questions"}</button></div><div class="status-line" id="prepStatus">${busy.prep?"Writing questions…":""}</div>
+      ${qs.map((q,i)=>`<div class="prepq"><div class="q">${i+1}. ${esc(q.q)}</div>${q.tip?`<p class="hint">${esc(q.tip)}</p>`:""}
+        <textarea class="t" data-ans="${i}" style="min-height:110px;margin-top:8px" placeholder="Your answer">${esc(q.answer)}</textarea>
+        <div class="row" style="margin-top:8px"><button class="btn small primary" data-feedback="${i}" ${busy["fb"+i]?"disabled":""}>Get feedback</button><button class="btn small" data-saveans="${i}">Save answer</button></div>
+        ${q.feedback||busy["fb"+i]?`<div class="out" style="margin-top:10px;font-size:14px;background:var(--bg);padding:10px;border-radius:8px" id="fb_${i}">${esc(q.feedback||"Thinking…")}</div>`:""}</div>`).join("")}`;
+  }
+  if(state.dtab==="advert"){
+    return `<p class="hint">Paste the full advert here if it was added from an alert email. Then read it again to pull out the criteria.</p>
+      <textarea class="t" id="advertEdit" style="min-height:360px">${esc(j.advert)}</textarea>
+      <div class="row" style="margin-top:10px"><button class="btn primary" id="reread" ${busy.reread?"disabled":""}>Save and read advert</button><button class="btn" id="saveAdvert">Save only</button></div><div class="status-line" id="rereadStatus"></div>
+      <h3 class="section-h">Essential criteria</h3>${(j.essential||[]).map(x=>`<div style="font-size:14px">• ${esc(x)}</div>`).join("")||`<p class="muted">None yet.</p>`}
+      <h3 class="section-h">Desirable criteria</h3>${(j.desirable||[]).map(x=>`<div style="font-size:14px">• ${esc(x)}</div>`).join("")||`<p class="muted">None yet.</p>`}`;
+  }
+  return "";
+}
+function wc(s){ const n=(s||"").trim().split(/\s+/).filter(Boolean).length; return n?n+" words":""; }
+
+/* ---------- Draft generation ---------- */
+const ctls={};
+async function generateDraft(j,k){
+  if(!needAI()) return;
+  if(!state.profile.cv){ toast("Add your CV in My profile first."); return; }
+  const prompt = k==="statement"
+    ? `Write an NHS supporting statement for this job. ${STYLE_RULES}
+Structure: a short opening on why this role and employer, then address every essential criterion and then the desirable ones, in the same order as the person specification, using a clear short heading for each group of related criteria. For each, give a specific real example from my CV or evidence bank (what I did and the result). Never invent experience, employers, numbers or qualifications that are not in my information. If I lack something, show the closest transferable experience honestly. End with a short closing paragraph. Aim for about 900 to 1,200 words unless the advert gives a limit. Output only the statement text, no notes.
+
+${profileText()}
+
+${jobText(j)}`
+    : `Rewrite my work experience section of my CV for this job. ${STYLE_RULES}
+For each role in my CV, keep the job title, employer and dates exactly as they are, then write 4 to 6 short bullet points (starting with "- ") that show the duties and results most relevant to this job's person specification, using its keywords where they are true for me. Most relevant roles get more detail. Never invent experience, numbers or tools that are not in my information. Output only the experience section.
+
+${profileText()}
+
+${jobText(j)}`;
+  busy[k]=true; ctls[k]=new AbortController(); renderDrawer(true);
+  const st=$("#st_"+k); if(st) st.textContent="Thinking. The first words can take up to a minute…";
+  try{
+    const {text,truncated}=await sampleFn(prompt,{signal:ctls[k].signal,cache:false,onText:({text})=>{ const ta=$("#d_"+k); if(ta) ta.value=noDash(text); const s=$("#st_"+k); if(s) s.textContent="Writing…"; }});
+    const cur=getJob(j.id); cur[k]=noDash(text); await saveJob(cur);
+    busy[k]=false; renderDrawer(true);
+    const s=$("#st_"+k); if(s) s.textContent=truncated?"The draft was cut short. Draft again or finish it yourself.":"Draft saved.";
+  }catch(e){
+    busy[k]=false;
+    if(e.text){ const cur=getJob(j.id); cur[k]=noDash(e.text); await saveJob(cur); }
+    renderDrawer(true); const s=$("#st_"+k); if(s){ s.textContent=aiError(e); s.classList.toggle("err",e.code!=="cancelled"); }
+  }
+}
+
+/* ---------- Events ---------- */
+document.addEventListener("click", async ev=>{
+  const t=ev.target.closest("button, [data-open], #scrim"); if(!t) return;
+  if(t.id==="scrim" || t.id==="closeD"){ closeJob(); return; }
+  if(t.dataset.tab){ state.tab=t.dataset.tab; closeJob(); render(); return; }
+  if(t.dataset.goto){ state.tab=t.dataset.goto; render(); return; }
+  if(t.dataset.view){ state.view=t.dataset.view; render(); return; }
+  if(t.dataset.open){ openJob(t.dataset.open); return; }
+  if(t.dataset.dtab){ state.dtab=t.dataset.dtab; renderDrawer(true); return; }
+  const j=state.openId?getJob(state.openId):null;
+
+  /* Add: advert */
+  if(t.id==="readAdvert"){
+    const text=$("#advertIn").value.trim(); const st=$("#advertStatus"); st.classList.remove("err");
+    if(text.length<80){ st.textContent="Paste the full advert text first."; st.classList.add("err"); return; }
+    if(!needAI()) return;
+    t.disabled=true; st.textContent="Reading the advert. This can take up to a minute…";
+    try{
+      const x=await aiExtractAdvert(text);
+      const job=newJob({...x, essential:Array.isArray(x.essential)?x.essential:[], desirable:Array.isArray(x.desirable)?x.desirable:[], advert:text.slice(0,40000), link:$("#advertLink").value.trim()||x.link||""});
+      await store.save(job); render(); toast("Job saved");
+      openJob(job.id, state.profile.cv?"fit":"overview");
+    }catch(e){ st.textContent=aiError(e); st.classList.add("err"); t.disabled=false; }
+    return;
+  }
+  if(t.id==="manualAdd"){ const job=newJob({advert:$("#advertIn")?.value.trim()||"", link:$("#advertLink")?.value.trim()||""}); await store.save(job); render(); openJob(job.id); return; }
+  /* Add: alert */
+  if(t.id==="readAlert"){
+    const text=$("#alertIn").value.trim(); const st=$("#alertStatus"); st.classList.remove("err");
+    if(text.length<40){ st.textContent="Paste the alert email first."; st.classList.add("err"); return; }
+    if(!needAI()) return;
+    t.disabled=true; st.textContent="Looking for jobs…";
+    try{
+      let list=await aiExtractAlert(text); if(!Array.isArray(list)) list=[];
+      const have=new Set(state.jobs.map(j=>(j.title+"|"+j.employer).toLowerCase()));
+      state.found=list.filter(x=>x&&x.title).map(x=>({...x,pick:!have.has((x.title+"|"+x.employer).toLowerCase())}));
+      render(); const s2=$("#alertStatus"); if(s2) s2.textContent=state.found.length?`Found ${state.found.length} jobs. Jobs you already track are unticked.`:"No jobs found in that text.";
+    }catch(e){ st.textContent=aiError(e); st.classList.add("err"); t.disabled=false; }
+    return;
+  }
+  if(t.id==="addFound"){
+    const pick=state.found.filter(f=>f.pick); if(!pick.length){ toast("Tick at least one job."); return; }
+    for(const f of pick){ await store.save(newJob({title:f.title||"",employer:f.employer||"",band:f.band||"",salary:f.salary||"",location:f.location||"",closingDate:f.closingDate||"",link:f.link||""})); }
+    state.found=[]; state.tab="pipeline"; render(); toast(`Saved ${pick.length} job${pick.length>1?"s":""}`); return;
+  }
+  if(t.id==="clearFound"){ state.found=[]; render(); return; }
+
+  /* Profile */
+  if(t.id==="saveProfile"){ state.profile.cv=$("#cvIn").value; state.profile.notes=$("#notesIn").value; await saveProfile(); toast("Profile saved"); return; }
+  if(t.id==="saveEv"){
+    const title=$("#evTitle").value.trim(), story=$("#evStory").value.trim(); if(!title||!story){ toast("Add a title and the example."); return; }
+    const item={title,tags:$("#evTags").value.trim(),story}; const idx=$("#evIdx").value;
+    state.profile.cv=$("#cvIn").value; state.profile.notes=$("#notesIn").value;
+    const list=[...(state.profile.evidence||[])]; if(idx!=="") list[+idx]=item; else list.push(item); state.profile.evidence=list;
+    await saveProfile(); render(); toast("Example saved"); return;
+  }
+  if(t.id==="cancelEv"){ ["evTitle","evTags","evStory","evIdx"].forEach(id=>$("#"+id).value=""); $("#evFormTitle").textContent="Add an example"; return; }
+  if(t.dataset.editev!=null){ const e=state.profile.evidence[+t.dataset.editev]; $("#evIdx").value=t.dataset.editev; $("#evTitle").value=e.title; $("#evTags").value=e.tags||""; $("#evStory").value=e.story; $("#evFormTitle").textContent="Edit example"; $("#evTitle").focus(); return; }
+  if(t.dataset.delev!=null){ if(!confirm("Remove this example?")) return; state.profile.evidence=state.profile.evidence.filter((_,i)=>i!==+t.dataset.delev); await saveProfile(); render(); return; }
+
+  /* Stats */
+  if(t.id==="exportAll"){ await saveFile("job-tracker-backup.json", JSON.stringify({exportedAt:nowIso(),profile:state.profile,jobs:state.jobs},null,2)); return; }
+
+  if(!j) return;
+  /* Drawer actions */
+  if(t.id==="saveOverview"){
+    document.querySelectorAll("#dbody [data-field]").forEach(el=>{ j[el.dataset.field]=el.value; });
+    await saveJob(j); renderDrawer(true); toast("Saved"); return;
+  }
+  if(t.id==="deleteJob"){ if(!confirm("Delete this job and its drafts?")) return; const id=j.id; closeJob(); await store.remove(id); render(); toast("Job deleted"); return; }
+  if(t.id==="runScore"){
+    if(!needAI()) return; if(!state.profile.cv){ toast("Add your CV in My profile first."); return; }
+    busy.score=true; renderDrawer(true);
+    try{ const r=await aiScore(j); const cur=getJob(j.id);
+      cur.fit={score:Math.max(1,Math.min(10,parseInt(r.score)||0)),verdict:r.verdict,summary:noDash(r.summary),criteria:(r.criteria||[]).map(c=>({...c,evidence:noDash(c.evidence)})),at:nowIso()};
+      busy.score=false; await saveJob(cur); renderDrawer(true);
+    }catch(e){ busy.score=false; renderDrawer(true); const s=$("#scoreStatus"); if(s){ s.textContent=aiError(e); s.classList.add("err"); } }
+    return;
+  }
+  if(t.dataset.gen){ generateDraft(j,t.dataset.gen); return; }
+  if(t.dataset.stop){ ctls[t.dataset.stop]?.abort(); return; }
+  if(t.dataset.savedraft){ const k=t.dataset.savedraft; j[k]=$("#d_"+k).value; await saveJob(j); const s=$("#st_"+k); if(s) s.textContent="Edits saved."; return; }
+  if(t.dataset.copy){ const k=t.dataset.copy; try{ await navigator.clipboard.writeText($("#d_"+k).value); toast("Copied"); }catch(e){ $("#d_"+k).select(); toast("Select all and copy"); } return; }
+  if(t.dataset.dl){ const k=t.dataset.dl; const name=(j.title||"job").replace(/[^a-z0-9]+/gi,"-").slice(0,50)+(k==="statement"?"-supporting-statement":"-cv-experience")+".txt"; await saveFile(name,$("#d_"+k).value||" "); return; }
+  if(t.id==="genPrep"){
+    if(!needAI()) return;
+    busy.prep=true; renderDrawer(true);
+    try{
+      const r=await sampleFn.json(`Write 8 likely interview questions for this NHS or public sector job, based on its person specification and duties. Mix values-based, competency (STAR) and technical questions. For each, add a one-sentence tip on what the panel wants to hear, pointing to which of my real experiences would make a good example. Simple UK English, no em dashes.
+Reply with only a JSON array: [{"q":string,"tip":string}]
+
+${profileText()}
+
+${jobText(j)}`,{modelTier:"default",cache:false});
+      const cur=getJob(j.id); cur.prep=(Array.isArray(r)?r:[]).map(x=>({q:noDash(x.q),tip:noDash(x.tip),answer:"",feedback:""})); busy.prep=false; await saveJob(cur); renderDrawer(true);
+    }catch(e){ busy.prep=false; renderDrawer(true); const s=$("#prepStatus"); if(s){ s.textContent=aiError(e); s.classList.add("err"); } }
+    return;
+  }
+  if(t.dataset.saveans!=null){ const i=+t.dataset.saveans; j.prep[i].answer=document.querySelector(`[data-ans="${i}"]`).value; await saveJob(j); toast("Answer saved"); return; }
+  if(t.dataset.feedback!=null){
+    if(!needAI()) return; const i=+t.dataset.feedback; const ans=document.querySelector(`[data-ans="${i}"]`).value.trim();
+    if(ans.length<20){ toast("Write an answer first."); return; }
+    j.prep[i].answer=ans; busy["fb"+i]=true; await saveJob(j); renderDrawer(true);
+    try{
+      const {text}=await sampleFn(`You are an NHS interview panel member. Give feedback on my answer to this interview question for the job below. Say what works, what is missing (for example a clear result, the STAR structure, links to NHS values or the person specification), and give a score out of 5. Then show a short improved version that uses only facts from my answer and my real experience. Simple UK English, no em dashes, no markdown headings.
+
+QUESTION: ${j.prep[i].q}
+MY ANSWER: ${ans}
+
+${profileText()}
+
+${jobText(j)}`,{cache:false,onText:({text})=>{ const el=$("#fb_"+i); if(el) el.textContent=noDash(text); }});
+      const cur=getJob(j.id); cur.prep[i].feedback=noDash(text); busy["fb"+i]=false; await saveJob(cur); renderDrawer(true);
+    }catch(e){ busy["fb"+i]=false; renderDrawer(true); toast(aiError(e)); }
+    return;
+  }
+  if(t.id==="saveAdvert"||t.id==="reread"){
+    j.advert=$("#advertEdit").value.slice(0,40000);
+    if(t.id==="saveAdvert"){ await saveJob(j); toast("Advert saved"); return; }
+    if(!needAI()) return; if(j.advert.length<80){ toast("Paste the full advert first."); return; }
+    busy.reread=true; await saveJob(j); renderDrawer(true); const s=$("#rereadStatus"); if(s) s.textContent="Reading the advert…";
+    try{ const x=await aiExtractAdvert(j.advert); const cur=getJob(j.id);
+      for(const k of ["title","employer","band","salary","location","reference","closingDate","sponsorship"]) if(x[k] && (!cur[k]||cur[k]==="unknown")) cur[k]=x[k];
+      cur.essential=Array.isArray(x.essential)?x.essential:[]; cur.desirable=Array.isArray(x.desirable)?x.desirable:[];
+      busy.reread=false; await saveJob(cur); renderDrawer(true); toast("Criteria updated");
+    }catch(e){ busy.reread=false; renderDrawer(true); const s2=$("#rereadStatus"); if(s2){ s2.textContent=aiError(e); s2.classList.add("err"); } }
+    return;
+  }
+});
+document.addEventListener("change", async ev=>{
+  const t=ev.target;
+  if(t.id==="statusSel"){ const j=getJob(state.openId); if(j){ await setStatus(j,t.value); renderDrawer(true);} return; }
+  if(t.dataset.found!=null){ state.found[+t.dataset.found].pick=t.checked; }
+});
+document.addEventListener("input", ev=>{ const t=ev.target; if(t.dataset.draft){ const w=$("#wc_"+t.dataset.draft); if(w) w.textContent=wc(t.value); } });
+document.addEventListener("keydown", ev=>{ if(ev.key==="Escape" && state.openId) closeJob(); });
+
+async function saveFile(filename,data){
+  if(downloads){ try{ await downloads.save({filename,data}); return; }catch(e){ if(e.code==="cancelled"||e.code==="declined") return; } }
+  try{ await navigator.clipboard.writeText(data); toast("Downloads are not available here, so it was copied instead."); }catch(e){ toast("Could not save the file here."); }
+}
+
+/* ---------- Start ---------- */
+render();
+(async()=>{
+  try{ sampleFn = await window.claude?.use("sample") || null; }catch(e){}
+  try{ downloads = await window.claude?.use("downloads") || null; }catch(e){}
+})();
+initStore().catch(()=>{ store=localStore(); $("#storageNote").textContent="Saved in this browser only"; });
+</script>
+</body>
+</html>
