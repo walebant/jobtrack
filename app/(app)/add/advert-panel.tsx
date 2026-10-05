@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useActionState, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Chip, ClosingChip } from "@/components/chips";
+import { FitChip, VERDICT_LABEL } from "@/components/fit";
 import { Panel, StatusLine } from "@/components/panel";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -48,23 +49,38 @@ export function AdvertPanel() {
           </Button>
         </div>
         <StatusLine
-          message={reading ? "Reading the advert. This can take up to a minute…" : state.status === "error" ? state.message : undefined}
+          message={reading ? "Reading and scoring the advert. This can take up to a minute…" : state.status === "error" ? state.message : undefined}
           error={!reading && state.status === "error"}
         />
       </form>
 
-      {state.status === "saved" && <SavedJob job={state.job} seconds={state.seconds} />}
+      {state.status === "saved" && <SavedJob job={state.job} fit={state.fit} seconds={state.seconds} />}
       {manual && <ManualForm />}
     </Panel>
   );
 }
 
-function SavedJob({ job, seconds }: { job: SavedJobSummary; seconds: number }) {
+type SavedFit = Extract<AdvertState, { status: "saved" }>["fit"];
+
+function SavedJob({ job, fit, seconds }: { job: SavedJobSummary; fit: SavedFit; seconds: number }) {
   const noCriteria = job.essential.length + job.desirable.length === 0;
   return (
     <div className="mt-3 rounded-xl border bg-background p-3.5" aria-live="polite">
-      <p className="text-sm text-muted-foreground">Saved to your pipeline in {seconds} seconds</p>
-      <h3 className="mt-1 text-lg font-bold">{job.title}</h3>
+      <p className="text-sm text-muted-foreground">
+        Saved{"score" in fit ? " and scored" : ""} in {seconds} seconds
+      </p>
+      <div className="mt-1 flex items-start justify-between gap-3">
+        <h3 className="text-lg font-bold">{job.title}</h3>
+        {"score" in fit && <FitChip score={fit.score} className="mt-1" />}
+      </div>
+      {"score" in fit ? (
+        <p className="text-sm font-semibold">
+          {VERDICT_LABEL[fit.verdict]}
+          {fit.capped && <span className="font-normal text-muted-foreground"> (capped at 6: an essential criterion is a gap)</span>}
+        </p>
+      ) : (
+        <p className="text-sm text-mid">{fit.note}</p>
+      )}
       <p className="text-sm text-muted-foreground">{[job.employer, job.band, job.salary].filter(Boolean).join(" · ")}</p>
       <div className="mt-2 flex flex-wrap gap-1.5">
         {job.closingDate && <Chip>Closes {formatUkDate(job.closingDate)}</Chip>}
@@ -82,9 +98,14 @@ function SavedJob({ job, seconds }: { job: SavedJobSummary; seconds: number }) {
           <CriteriaList title="Desirable" items={job.desirable} />
         </details>
       )}
-      <Button asChild variant="outline" size="sm" className="mt-3">
-        <Link href="/pipeline">Go to pipeline</Link>
-      </Button>
+      <div className="mt-3 flex flex-wrap gap-2">
+        <Button asChild size="sm">
+          <Link href={`/jobs/${job.id}`}>{"score" in fit ? "View fit score" : "Open job"}</Link>
+        </Button>
+        <Button asChild variant="outline" size="sm">
+          <Link href="/pipeline">Go to pipeline</Link>
+        </Button>
+      </div>
     </div>
   );
 }

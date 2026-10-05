@@ -1,0 +1,25 @@
+Sam Example
+Northtown | sam@example.com
+
+PROFILE
+Data and systems administrator with four years in the NHS. I produce weekly performance reports, keep patient records accurate and automate repetitive tasks in Excel.
+
+EXPERIENCE
+Systems Administrator, Band 4
+Riverside Hospitals NHS Trust, March 2023 to present
+- Produce weekly waiting list and referral reports in Excel for service managers, using pivot tables, XLOOKUP and conditional formatting.
+- Write SQL queries against the patient administration system to pull referral and appointment data for monthly reports.
+- Run a monthly data quality check on 12,000 outpatient records and work with clinic teams to correct missing ethnicity and GP codes, which cut errors by 40% in six months.
+- Present report findings at the monthly operations meeting to non-technical managers.
+
+Medical Records Clerk, Band 2
+Riverside Hospitals NHS Trust, June 2021 to February 2023
+- Kept patient records accurate and compliant with information governance rules.
+- Trained three new starters on the records system.
+
+EDUCATION
+BSc (Hons) Business Management, 2:1, Northtown University, 2021
+Includes a module in statistics and data analysis.
+
+SKILLS
+Excel (advanced), SQL (intermediate), Microsoft Office, clear written and spoken communication.

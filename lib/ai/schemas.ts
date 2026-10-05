@@ -34,7 +34,40 @@ export const AlertSchema = z.object({
 });
 export type AlertJob = z.infer<typeof AlertJobSchema>;
 
+export const FitCriterionSchema = z.object({
+  text: z.string().describe("The criterion, as written in the person specification"),
+  type: z.enum(["essential", "desirable"]),
+  rating: z.enum(["met", "partial", "gap"]),
+  evidence: z
+    .string()
+    .describe("Which of the candidate's real experience shows it, or what is missing and how to address it honestly"),
+});
+export const FitSchema = z.object({
+  score: z.number().int().describe("Overall fit from 1 (poor) to 10 (excellent)"),
+  verdict: z.enum(["apply", "maybe", "skip"]),
+  summary: z.string().describe("2 to 3 plain sentences on the overall fit"),
+  criteria: z.array(FitCriterionSchema).describe("Every essential and desirable criterion, in the order given"),
+});
+export type FitReply = z.infer<typeof FitSchema>;
+
 /* ---------- Normalising ---------- */
+
+// PRD scoring rule: a missing essential criterion caps the score at 6.
+export const ESSENTIAL_GAP_CAP = 6;
+
+export function normaliseFit(f: FitReply) {
+  const criteria = f.criteria
+    .map((c) => ({ ...c, text: c.text.trim().slice(0, 500), evidence: c.evidence.trim().slice(0, 1500) }))
+    .filter((c) => c.text)
+    .slice(0, MAX_CRITERIA * 2);
+  const essentialGap = criteria.some((c) => c.type === "essential" && c.rating === "gap");
+  let score = Math.min(10, Math.max(1, Math.round(f.score)));
+  if (essentialGap) score = Math.min(score, ESSENTIAL_GAP_CAP);
+  // Keep the verdict consistent with a capped score.
+  const verdict = essentialGap && f.verdict === "apply" ? "maybe" : f.verdict;
+  return { score, verdict, summary: f.summary.trim().slice(0, 1500), criteria, capped: essentialGap && score < f.score };
+}
+export type NormalisedFit = ReturnType<typeof normaliseFit>;
 
 const MAX_CRITERIA = 40;
 const MAX_FIELD = 300;

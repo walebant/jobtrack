@@ -38,7 +38,9 @@ export type JobStatus = (typeof JOB_STATUSES)[number];
 
 export const jobStatus = pgEnum("job_status", JOB_STATUSES);
 export const sponsorship = pgEnum("sponsorship", ["yes", "no", "unknown"]);
-export const jobSource = pgEnum("job_source", ["paste", "alert", "manual", "gmail"]);
+export const jobSource = pgEnum("job_source", ["paste", "alert", "manual", "gmail", "nhs_jobs"]);
+// Jobs found by Find jobs wait in an inbox until saved (inbox becomes null) or dismissed.
+export const jobInbox = pgEnum("job_inbox", ["suggested", "dismissed"]);
 export const fitVerdict = pgEnum("fit_verdict", ["apply", "maybe", "skip"]);
 export const draftKind = pgEnum("draft_kind", ["statement", "cv_experience"]);
 
@@ -130,12 +132,17 @@ export const jobs = pgTable(
     contacts: text("contacts").notNull().default(""),
     notes: text("notes").notNull().default(""),
     source: jobSource("source").notNull().default("manual"),
+    // NHS Jobs advert id (for example C9232-26-0255), so a job is never suggested twice.
+    externalRef: text("external_ref"),
+    // null = in the pipeline; "suggested" / "dismissed" = found by Find jobs.
+    inbox: jobInbox("inbox"),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
   (t) => [
     // Target for the child tables' (job_id, user_id) foreign keys.
     unique("jobs_id_user_id_key").on(t.id, t.userId),
+    uniqueIndex("jobs_user_external_ref_idx").on(t.userId, t.externalRef).where(sql`${t.externalRef} is not null`),
     index("jobs_user_status_idx").on(t.userId, t.status),
     index("jobs_user_closing_idx").on(t.userId, t.closingDate),
     ownerOnly("jobs", t.userId),
@@ -224,6 +231,27 @@ export const prepQuestions = pgTable(
     index("prep_questions_job_idx").on(t.jobId, t.position),
     ownerOnly("prep_questions", t.userId),
   ],
+);
+
+// The saved NHS Jobs search behind Find jobs (one per user).
+export const jobSearches = pgTable(
+  "job_searches",
+  {
+    userId: uuid("user_id")
+      .primaryKey()
+      .default(sql`auth.uid()`)
+      .references(() => authUsers.id, { onDelete: "cascade" }),
+    keywords: text("keywords").notNull().default(""),
+    location: text("location").notNull().default(""),
+    distance: integer("distance").notNull().default(20),
+    staffGroups: text("staff_groups").array().notNull().default(sql`'{ADMINISTRATIVE_AND_CLERICAL}'::text[]`),
+    bands: text("bands").array().notNull().default(sql`'{}'::text[]`),
+    maxNew: integer("max_new").notNull().default(20),
+    lastRunAt: timestamp("last_run_at", { withTimezone: true }),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [ownerOnly("job_searches", t.userId)],
 );
 
 // AI calls per user per UK day. Users may read their own count but never write it:

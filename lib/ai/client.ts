@@ -4,8 +4,16 @@ import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import { todayUk } from "@/lib/dates";
 import { cleanDeep } from "./clean";
 import { AiError } from "./errors";
-import { READ_ADVERT_SYSTEM, READ_ALERT_SYSTEM, readAdvertUser, readAlertUser } from "./prompts";
-import { AdvertSchema, AlertSchema, normaliseAdvert, normaliseAlertJob } from "./schemas";
+import {
+  READ_ADVERT_SYSTEM,
+  READ_ALERT_SYSTEM,
+  SCORE_FIT_SYSTEM,
+  jobBlock,
+  profileBlock,
+  readAdvertUser,
+  readAlertUser,
+} from "./prompts";
+import { AdvertSchema, AlertSchema, FitSchema, normaliseAdvert, normaliseAlertJob, normaliseFit } from "./schemas";
 
 // Server only: the API key never reaches the browser.
 export const MODELS = {
@@ -69,6 +77,29 @@ export async function readAdvert(advert: string) {
     }),
   );
   return { advert: normaliseAdvert(cleanDeep(parsedOrThrow(res))), model: res.model };
+}
+
+export type ProfileForAi = Parameters<typeof profileBlock>[0];
+export type JobForAi = Parameters<typeof jobBlock>[0];
+
+// Scores the candidate against a job's person specification.
+export async function scoreFit(profile: ProfileForAi, job: JobForAi) {
+  const res = await call(() =>
+    anthropic().beta.messages.parse({
+      model: MODELS.main,
+      max_tokens: 16_000,
+      output_config: { effort: "medium", format: betaZodOutputFormat(FitSchema) },
+      betas: ["server-side-fallback-2026-07-01"],
+      fallbacks: "default",
+      system: [
+        { type: "text", text: SCORE_FIT_SYSTEM },
+        // The profile repeats across every score, draft and feedback call, so it is cached.
+        { type: "text", text: profileBlock(profile), cache_control: { type: "ephemeral" } },
+      ],
+      messages: [{ role: "user", content: `Score my fit for this job.\n\n${jobBlock(job)}` }],
+    }),
+  );
+  return { fit: normaliseFit(cleanDeep(parsedOrThrow(res))), model: res.model };
 }
 
 // Lists every job in a pasted alert email.

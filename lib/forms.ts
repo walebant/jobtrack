@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { toHttpUrl, toIsoDate } from "@/lib/ai/schemas";
+import { BANDS, STAFF_GROUPS, type Band, type StaffGroup } from "@/lib/nhsjobs/constants";
 
 // Checks for everything the browser sends to a server action.
 
@@ -79,6 +80,19 @@ export const FoundJobsInput = z
   )
   .min(1, "Tick at least one job.")
   .max(50);
+
+export const DISTANCES = [5, 10, 15, 20, 30, 50] as const;
+
+export const SearchInput = z.object({
+  keywords: text(200),
+  location: text(100),
+  distance: z.coerce
+    .number()
+    .refine((n) => (DISTANCES as readonly number[]).includes(n), "Pick a distance from the list."),
+  staffGroups: z.array(z.enum(Object.keys(STAFF_GROUPS) as [StaffGroup, ...StaffGroup[]])).max(10),
+  bands: z.array(z.enum(Object.keys(BANDS) as [Band, ...Band[]])).max(15),
+  maxNew: z.coerce.number().int().min(1).max(30),
+});
 
 // First error message from a failed parse, for showing under a form.
 export function firstIssue(error: z.ZodError): string {

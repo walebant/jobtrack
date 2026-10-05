@@ -9,6 +9,7 @@ import { jobs } from "@/lib/db/schema";
 import { requireUserId, userDb } from "@/lib/db/user";
 import { AdvertInput, AlertInput, FoundJobsInput, ManualJobInput, firstIssue, formFields } from "@/lib/forms";
 import { markDuplicates } from "@/lib/jobs/duplicates";
+import { scoreJob } from "@/lib/jobs/score";
 
 export type SavedJobSummary = {
   id: string;
@@ -25,18 +26,27 @@ export type SavedJobSummary = {
 export type AdvertState =
   | { status: "idle" }
   | { status: "error"; message: string }
-  | { status: "saved"; job: SavedJobSummary; seconds: number; at: number };
+  | {
+      status: "saved";
+      job: SavedJobSummary;
+      // The fit score, or why the job was not scored.
+      fit: { score: number; verdict: "apply" | "maybe" | "skip"; capped: boolean } | { note: string };
+      seconds: number;
+      at: number;
+    };
 
+// Reads a pasted advert, saves the job, then scores it straight away.
 export async function readAdvertAndSave(_prev: AdvertState, formData: FormData): Promise<AdvertState> {
   const parsed = AdvertInput.safeParse(formFields(formData));
   if (!parsed.success) return { status: "error", message: firstIssue(parsed.error) };
   const userId = await requireUserId();
   const started = Date.now();
 
+  let job: typeof jobs.$inferSelect;
   try {
     await consumeAiCall(userId);
     const { advert } = await readAdvert(parsed.data.advert);
-    const [job] = await userDb((tx) =>
+    [job] = await userDb((tx) =>
       tx
         .insert(jobs)
         .values({
@@ -48,9 +58,16 @@ export async function readAdvertAndSave(_prev: AdvertState, formData: FormData):
         })
         .returning(),
     );
-    refresh();
-    return {
+  } catch (e) {
+    return { status: "error", message: aiErrorMessage(e) };
+  }
+
+  // The job is saved either way; a scoring problem is shown as a note.
+  const scored = await scoreJob(userId, job.id);
+  refresh();
+  return {
       status: "saved",
+      fit: scored.ok ? { score: scored.score, verdict: scored.verdict, capped: scored.capped } : { note: scored.message },
       seconds: Math.round((Date.now() - started) / 1000),
       at: Date.now(),
       job: {
@@ -65,9 +82,6 @@ export async function readAdvertAndSave(_prev: AdvertState, formData: FormData):
         desirable: job.desirable,
       },
     };
-  } catch (e) {
-    return { status: "error", message: aiErrorMessage(e) };
-  }
 }
 
 export type FoundJobWithPick = FoundJob & { pick: boolean };

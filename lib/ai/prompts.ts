@@ -24,6 +24,60 @@ export function readAdvertUser(advert: string, today: string) {
   return `Today is ${today}.\n\n<advert>\n${advert}\n</advert>`;
 }
 
+export const SCORE_FIT_SYSTEM = `You are an NHS recruitment shortlisting panel. Score how well the candidate fits the job, criterion by criterion, using only what the candidate's CV, evidence bank and notes actually show. Be honest and strict, as a real shortlisting panel would be: give credit only for what is clearly shown.
+
+Rules:
+- Include every essential and desirable criterion, in the order given, with its text unchanged.
+- rating: "met" when the candidate clearly shows it, "partial" when they show related or transferable experience, "gap" when nothing they have shows it.
+- evidence: name the specific experience that shows it, or say what is missing and how they could honestly address it.
+- A missing essential criterion caps the score at 6. Applicants who miss an essential criterion are rarely shortlisted.
+- verdict: "apply" if they are likely to be shortlisted, "maybe" if it could go either way, "skip" if they are unlikely to be.
+- summary: 2 to 3 plain sentences on the overall fit and the biggest risk.
+- Never invent experience the candidate does not have.
+- Write in simple, plain UK English, speaking about the candidate as "you". Never use em dashes.`;
+
+// The candidate's profile, sent as its own cached block because it repeats across calls.
+export function profileBlock(p: { cvText: string; notes: string; evidence: { title: string; tags: string[]; story: string }[] }) {
+  let s = `<candidate_cv>\n${p.cvText.slice(0, 20_000)}\n</candidate_cv>`;
+  if (p.evidence.length) {
+    const items = p.evidence
+      .map((e, i) => `${i + 1}. ${e.title}${e.tags.length ? ` [${e.tags.join(", ")}]` : ""}\n${e.story}`)
+      .join("\n\n");
+    s += `\n\n<evidence_bank note="Real examples. Use only these facts.">\n${items.slice(0, 20_000)}\n</evidence_bank>`;
+  }
+  if (p.notes.trim()) s += `\n\n<candidate_notes>\n${p.notes.slice(0, 4_000)}\n</candidate_notes>`;
+  return s;
+}
+
+export function jobBlock(j: {
+  title: string;
+  employer: string;
+  band: string;
+  salary: string;
+  location: string;
+  essential: string[];
+  desirable: string[];
+  advertText: string;
+}) {
+  const list = (items: string[]) => (items.length ? items.map((x) => `- ${x}`).join("\n") : "(none listed)");
+  return `<job>
+Title: ${j.title}
+Employer: ${j.employer}
+Band: ${j.band}
+Salary: ${j.salary}
+Location: ${j.location}
+
+Essential criteria:
+${list(j.essential)}
+
+Desirable criteria:
+${list(j.desirable)}
+
+Full advert:
+${j.advertText.slice(0, 25_000) || "(not provided)"}
+</job>`;
+}
+
 export const READ_ALERT_SYSTEM = `You read job alert emails (for example from NHS Jobs, Trac or a council job site) and list every job in them.
 
 Rules:
