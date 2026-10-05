@@ -1,0 +1,5 @@
+# Never upload local secrets or test-only files with "vercel deploy"
+.env*
+!.env.example
+reference/
+tests/
