@@ -8,6 +8,7 @@ import { formatUkDate } from "@/lib/dates";
 import { getJobDetail } from "@/lib/db/queries";
 import { userDb } from "@/lib/db/user";
 import { NO_CRITERIA_MESSAGE, NO_CV_MESSAGE } from "@/lib/jobs/score";
+import { SECTOR_LABEL, assessedFor } from "@/lib/ai/sector";
 import { WRITING_KINDS, type WritingKind } from "@/lib/ai/writing";
 import { APPLIED_STATUSES, closingDateMatters, inStageGroup, interviewInfo } from "@/lib/jobs/status";
 import { cn } from "@/lib/utils";
@@ -79,6 +80,7 @@ export default async function JobPage(props: PageProps<"/jobs/[id]">) {
           {interview && <InterviewChip info={interview} />}
           {job.closingDate && <Chip>Closes {formatUkDate(job.closingDate)}</Chip>}
           {closingDateMatters(job.status) && <ClosingChip closingDate={job.closingDate} />}
+          <Chip>{SECTOR_LABEL[job.sector]}</Chip>
           {job.location && <Chip>{job.location}</Chip>}
           {job.link && (
             <a href={job.link} target="_blank" rel="noopener noreferrer" className="text-sm underline underline-offset-2">
@@ -122,6 +124,7 @@ export default async function JobPage(props: PageProps<"/jobs/[id]">) {
             writeLimit={job.writeLimit}
             writeLimitUnit={job.writeLimitUnit}
             questions={job.writingQa[piece] ?? []}
+            appQuestions={job.appQuestions}
             versions={detail.drafts
               .filter((d) => d.kind === piece)
               .map((d) => ({
@@ -144,7 +147,13 @@ export default async function JobPage(props: PageProps<"/jobs/[id]">) {
               hasCriteria={hasCriteria}
               documents={detail.documents.map((d) => ({ ...d, createdAt: d.createdAt.toISOString() }))}
             />
-            <AdvertEditor jobId={job.id} advert={job.advertText} essential={job.essential} desirable={job.desirable} />
+            <AdvertEditor
+              jobId={job.id}
+              advert={job.advertText}
+              essential={job.essential}
+              desirable={job.desirable}
+              assessment={job.assessment}
+            />
           </>
         )}
       </section>
@@ -204,7 +213,7 @@ function FitTab({ detail, hasCriteria }: { detail: Detail; hasCriteria: boolean 
           </div>
           <div className="space-y-2">
             {sortCriteria(latest.criteria).map((c, i) => (
-              <CriterionCard key={`${c.type}-${i}`} c={c} />
+              <CriterionCard key={`${c.type}-${i}`} c={c} assessedAt={assessedFor(c.text, job.assessment)} />
             ))}
           </div>
           <p className="mt-3 text-sm text-muted-foreground">

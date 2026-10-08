@@ -183,6 +183,10 @@ async function readAndRescore(userId: string, job: Job, source: string): Promise
           sponsorship: job.sponsorship === "unknown" ? read.sponsorship : job.sponsorship,
           essential: read.essential,
           desirable: read.desirable,
+          assessment: read.assessment,
+          // Keep a sector the user has set; otherwise take what the advert says.
+          sector: job.sector === "other" ? read.sector : job.sector,
+          appQuestions: job.appQuestions.length ? job.appQuestions : read.appQuestions,
         })
         .where(eq(jobs.id, job.id)),
     );

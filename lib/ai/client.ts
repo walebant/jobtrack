@@ -1,18 +1,19 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { betaZodOutputFormat } from "@anthropic-ai/sdk/helpers/beta/zod";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
+import type { Sector } from "@/lib/db/schema";
 import { todayUk } from "@/lib/dates";
 import { cleanDeep, noDash } from "./clean";
-import { QUESTIONS_SYSTEM, QuestionsSchema, WRITING_LABEL, WRITING_SYSTEM, type WritingKind } from "./writing";
+import { QuestionsSchema, WRITING_LABEL, askFirstSystem, writingSystem, type WritingKind } from "./writing";
 import { AiError } from "./errors";
 import {
   READ_ADVERT_SYSTEM,
   READ_ALERT_SYSTEM,
-  SCORE_FIT_SYSTEM,
   jobBlock,
   profileBlock,
   readAdvertUser,
   readAlertUser,
+  scoreFitSystem,
 } from "./prompts";
 import { AdvertSchema, AlertSchema, FitSchema, normaliseAdvert, normaliseAlertJob, normaliseFit } from "./schemas";
 
@@ -98,14 +99,14 @@ export async function scoreFit(profile: ProfileForAi, job: JobForAi) {
       betas: ["server-side-fallback-2026-07-01"],
       fallbacks: "default",
       system: [
-        { type: "text", text: SCORE_FIT_SYSTEM },
+        { type: "text", text: scoreFitSystem(job.sector ?? "other") },
         // The profile repeats across every score, draft and feedback call, so it is cached.
         { type: "text", text: profileBlock(profile), cache_control: { type: "ephemeral" } },
       ],
       messages: [{ role: "user", content: `Score my fit for this job.\n\n${jobBlock(job)}` }],
     }),
   );
-  return { fit: normaliseFit(cleanDeep(parsedOrThrow(res))), model: res.model };
+  return { fit: normaliseFit(cleanDeep(parsedOrThrow(res)), job.assessment ?? {}), model: res.model };
 }
 
 // "Ask me first": up to 8 questions that would most improve the writing.
@@ -118,7 +119,7 @@ export async function askWritingQuestions(kind: WritingKind, profile: ProfileFor
       betas: ["server-side-fallback-2026-07-01"],
       fallbacks: "default",
       system: [
-        { type: "text", text: QUESTIONS_SYSTEM },
+        { type: "text", text: askFirstSystem(job.sector ?? "other") },
         { type: "text", text: profileBlock(profile), cache_control: { type: "ephemeral" } },
       ],
       messages: [
@@ -136,6 +137,7 @@ export async function askWritingQuestions(kind: WritingKind, profile: ProfileFor
 // quality with time to first words. The profile block is cached across calls.
 export function streamWriting(
   kind: WritingKind,
+  sector: Sector,
   profile: ProfileForAi,
   user: string,
   signal: AbortSignal,
@@ -148,7 +150,7 @@ export function streamWriting(
       betas: ["server-side-fallback-2026-07-01"],
       fallbacks: "default",
       system: [
-        { type: "text", text: WRITING_SYSTEM[kind] },
+        { type: "text", text: writingSystem(kind, sector) },
         { type: "text", text: profileBlock(profile), cache_control: { type: "ephemeral" } },
       ],
       messages: [{ role: "user", content: user }],

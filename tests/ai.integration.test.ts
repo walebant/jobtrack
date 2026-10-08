@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { askWritingQuestions, readAdvert, readAlertEmail, scoreFit, streamWriting } from "@/lib/ai/client";
 import { jobBlock } from "@/lib/ai/prompts";
-import { countWords, limitLine, splitReview, writingUser } from "@/lib/ai/writing";
+import { countWords, limitLine, splitAnswers, splitReview, writingUser } from "@/lib/ai/writing";
 
 const ready = Boolean(process.env.ANTHROPIC_API_KEY);
 const fixture = (name: string) => readFileSync(`tests/fixtures/${name}`, "utf8");
@@ -80,7 +80,7 @@ describe.skipIf(!ready)("AI extraction", { timeout: 120_000 }, () => {
       answers: [],
     });
     const started = Date.now();
-    const claude = streamWriting("statement", profile, user, new AbortController().signal);
+    const claude = streamWriting("statement", "nhs", profile, user, new AbortController().signal);
     let firstAt = 0;
     claude.on("text", () => (firstAt ||= Date.now()));
     const final = await claude.finalMessage();
@@ -101,6 +101,52 @@ describe.skipIf(!ready)("AI extraction", { timeout: 120_000 }, () => {
     expect(raw).not.toContain("—");
     // Nothing from outside the CV: the only employer in the CV is Riverside Hospitals.
     expect(content).toMatch(/Riverside/);
+  });
+
+  it("reads a council advert, scores it fairly and answers its form questions", { timeout: 400_000 }, async () => {
+    const text = fixture("advert-council.txt");
+    const { advert } = await readAdvert(text);
+    console.log("council advert:", JSON.stringify(advert, null, 2));
+    expect(advert.sector).toBe("council");
+    expect(advert.band).toMatch(/SO2/);
+    expect(advert.sponsorship).toBe("no");
+    expect(advert.essential).toHaveLength(5);
+    expect(advert.appQuestions).toHaveLength(2);
+    expect(advert.appQuestions.map((q) => q.limit)).toEqual([250, 200]);
+    const presenting = advert.essential.find((c) => /present/i.test(c))!;
+    expect(advert.assessment[presenting]).toEqual(["interview"]);
+
+    const profile = { cvText: fixture("cv-sample.txt"), notes: "", evidence: [] };
+    const job = { ...advert, advertText: text };
+    const { fit } = await scoreFit(profile, job);
+    console.log(`council score ${fit.score}/10 (${fit.verdict}), capped: ${fit.capped}`);
+    // Presenting to councillors is interview-only, so it must not cap the score at 6.
+    const present = fit.criteria.find((c) => /present/i.test(c.text));
+    console.log("presenting criterion:", present);
+
+    const user = writingUser("questions", {
+      jobBlock: jobBlock(job),
+      whyNotes: "Northbridge is my local council and I want to use my reporting skills for local services.",
+      limit: "",
+      answers: [],
+      questions: advert.appQuestions,
+    });
+    const claude = streamWriting("questions", "council", profile, user, new AbortController().signal);
+    const final = await claude.finalMessage();
+    const raw = final.content.flatMap((b) => (b.type === "text" ? [b.text] : [])).join("");
+    const { content, review } = splitReview(raw);
+    const answers = splitAnswers(content, 2);
+    answers.forEach((a, i) => console.log(`--- answer ${i + 1} (${countWords(a)} words) ---\n${a}`));
+    console.log("--- panel check ---\n" + review);
+
+    expect(final.stop_reason).toBe("end_turn");
+    expect(answers.every((a) => countWords(a) > 60)).toBe(true);
+    expect(countWords(answers[0])).toBeLessThanOrEqual(250);
+    expect(countWords(answers[1])).toBeLessThanOrEqual(200);
+    // Naming the candidate's real NHS employer is fine; NHS framing for a council job is not.
+    expect(content).not.toMatch(/NHS values|NHS Constitution|Agenda for Change|\bBand \d/i);
+    expect(content).toMatch(/council|resident|councillor/i);
+    expect(raw).not.toContain("—");
   });
 
   it("lists every job in an alert email", async () => {

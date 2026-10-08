@@ -31,6 +31,7 @@ export async function loadWritingContext(tx: Tx, jobId: string, kind: WritingKin
     whyNotes: job.whyNotes,
     limit: limitLine(job.writeLimit, job.writeLimitUnit),
     answers,
+    questions: job.appQuestions,
   });
   return { job, cv, profileForAi, jobForAi, user } as const;
 }

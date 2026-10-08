@@ -9,7 +9,7 @@ import { consumeAiCall } from "@/lib/ai/usage";
 import { WRITING_KINDS, type WritingKind } from "@/lib/ai/writing";
 import { drafts, jobs } from "@/lib/db/schema";
 import { requireUserId, userDb } from "@/lib/db/user";
-import { WritingInputs, firstIssue, formFields } from "@/lib/forms";
+import { AppQuestionsInput, WritingInputs, firstIssue, formFields } from "@/lib/forms";
 import { APPLIED_STATUSES } from "@/lib/jobs/status";
 import { loadWritingContext } from "@/lib/writing/context";
 
@@ -33,6 +33,23 @@ export async function saveWritingInputs(_prev: InputsState, formData: FormData):
   if (!rows.length) return { status: "error", message: "That job could not be found." };
   refresh();
   return { status: "ok", message: "Saved." };
+}
+
+// The application form's questions for this job, each with its own limit.
+export async function saveAppQuestions(jobId: string, questions: unknown): Promise<{ ok: true } | { ok: false; message: string }> {
+  const parsed = AppQuestionsInput.safeParse(questions);
+  if (!parsed.success) return { ok: false, message: firstIssue(parsed.error) };
+  const userId = await requireUserId();
+  const rows = await userDb((tx) =>
+    tx
+      .update(jobs)
+      .set({ appQuestions: parsed.data })
+      .where(and(eq(jobs.id, String(jobId)), eq(jobs.userId, userId)))
+      .returning({ id: jobs.id }),
+  );
+  if (!rows.length) return { ok: false, message: "That job could not be found." };
+  refresh();
+  return { ok: true };
 }
 
 // "Ask me first": Claude's questions are saved on the job with empty answers.

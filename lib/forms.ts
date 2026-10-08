@@ -80,9 +80,26 @@ export const OverviewInput = z.object({
     .refine((s) => s === "" || /^([01]\d|2[0-3]):[0-5]\d$/.test(s), "Enter the interview time as HH:MM."),
   link: optionalLink,
   sponsorship: z.enum(["yes", "no", "unknown"]),
+  sector: z.enum(["nhs", "council", "other"]),
   contacts: text(2_000),
   notes: text(10_000),
 });
+
+// Application form questions answered separately (Writing tab).
+export const AppQuestionsInput = z
+  .array(
+    z.object({
+      question: text(1_000).min(1, "A question cannot be empty. Remove it instead."),
+      limit: z
+        .number()
+        .int()
+        .min(20, "Limits must be at least 20.")
+        .max(20_000, "Limits must be 20,000 or less.")
+        .nullable(),
+      unit: z.enum(["words", "characters"]),
+    }),
+  )
+  .max(15, "Add up to 15 questions.");
 
 // Writing tab: why this role and employer, and the supporting statement's limit.
 export const WritingInputs = z.object({

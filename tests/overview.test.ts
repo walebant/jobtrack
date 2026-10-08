@@ -14,6 +14,7 @@ const base = {
   interviewTime: "",
   link: "",
   sponsorship: "unknown",
+  sector: "council",
   contacts: "",
   notes: "",
 };

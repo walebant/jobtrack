@@ -18,10 +18,43 @@ const advert: AdvertReply = {
   reference: "C9123-25-0456",
   closingDate: "2026-10-20",
   link: "https://www.jobs.nhs.uk/candidate/jobadvert/C9123-25-0456",
+  sector: "nhs",
   sponsorship: "unknown",
-  essential: ["- Degree or equivalent experience", "SQL", "sql", "  "],
-  desirable: ["• Power BI"],
+  essential: [
+    { text: "- Degree or equivalent experience", assessedAt: ["application"] },
+    { text: "SQL", assessedAt: ["application", "interview", "interview"] },
+    { text: "sql", assessedAt: [] },
+    { text: "  ", assessedAt: [] },
+  ],
+  desirable: [{ text: "• Power BI", assessedAt: [] }],
+  applicationQuestions: [],
 };
+
+describe("assessment markers and application questions", () => {
+  it("collects how each criterion is assessed, without duplicates", () => {
+    const n = normaliseAdvert(advert);
+    expect(n.assessment).toEqual({
+      "Degree or equivalent experience": ["application"],
+      SQL: ["application", "interview"],
+    });
+    expect(n.sector).toBe("nhs");
+  });
+
+  it("keeps application questions with sensible limits", () => {
+    const n = normaliseAdvert({
+      ...advert,
+      applicationQuestions: [
+        { question: "  Describe a time you improved a service. ", limit: 250, unit: "words" },
+        { question: "Why this council?", limit: 0, unit: "words" },
+        { question: "  ", limit: 100, unit: "words" },
+      ],
+    });
+    expect(n.appQuestions).toEqual([
+      { question: "Describe a time you improved a service.", limit: 250, unit: "words" },
+      { question: "Why this council?", limit: null, unit: "words" },
+    ]);
+  });
+});
 
 describe("AdvertSchema", () => {
   it("accepts a full reply", () => {

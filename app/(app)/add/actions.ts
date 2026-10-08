@@ -4,6 +4,7 @@ import { refresh } from "next/cache";
 import { readAdvert, readAlertEmail, MAX_ADVERT_CHARS } from "@/lib/ai/client";
 import { aiErrorMessage } from "@/lib/ai/errors";
 import type { FoundJob } from "@/lib/ai/schemas";
+import { guessSector } from "@/lib/ai/sector";
 import { consumeAiCall } from "@/lib/ai/usage";
 import { jobs } from "@/lib/db/schema";
 import { requireUserId, userDb } from "@/lib/db/user";
@@ -109,7 +110,7 @@ export async function saveFoundJobs(picked: unknown): Promise<{ ok: true; count:
   const parsed = FoundJobsInput.safeParse(picked);
   if (!parsed.success) return { ok: false, message: firstIssue(parsed.error) };
 
-  await userDb((tx) => tx.insert(jobs).values(parsed.data.map((j) => ({ ...j, source: "alert" as const }))));
+  await userDb((tx) => tx.insert(jobs).values(parsed.data.map((j) => ({ ...j, source: "alert" as const, sector: guessSector(j.employer) }))));
   refresh();
   return { ok: true, count: parsed.data.length };
 }
@@ -123,7 +124,7 @@ export async function addManualJob(_prev: ManualState, formData: FormData): Prom
   const parsed = ManualJobInput.safeParse(formFields(formData));
   if (!parsed.success) return { status: "error", message: firstIssue(parsed.error) };
 
-  const [job] = await userDb((tx) => tx.insert(jobs).values({ ...parsed.data, source: "manual" }).returning({ id: jobs.id }));
+  const [job] = await userDb((tx) => tx.insert(jobs).values({ ...parsed.data, source: "manual", sector: guessSector(parsed.data.employer) }).returning({ id: jobs.id }));
   refresh();
   return { status: "saved", id: job.id, title: parsed.data.title, at: Date.now() };
 }

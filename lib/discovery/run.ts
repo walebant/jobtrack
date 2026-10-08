@@ -72,6 +72,7 @@ export async function startDiscovery(userId: string): Promise<StartOutcome> {
             link: r.url,
             externalRef: r.ref,
             source: "nhs_jobs" as const,
+            sector: "nhs" as const,
             inbox: "suggested" as const,
           })),
         )

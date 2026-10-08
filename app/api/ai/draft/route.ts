@@ -31,6 +31,9 @@ export async function POST(request: NextRequest) {
   const ctx = await withUser(claims, (tx) => loadWritingContext(tx, jobId, kind));
   if (!ctx) return NextResponse.json({ error: "That job could not be found." }, { status: 404 });
   if (!ctx.cv) return NextResponse.json({ error: "Add a CV in My profile first." }, { status: 400 });
+  if (kind === "questions" && ctx.job.appQuestions.length === 0) {
+    return NextResponse.json({ error: "Add the application form questions first." }, { status: 400 });
+  }
   const cvName = ctx.cv.name;
 
   try {
@@ -45,7 +48,7 @@ export async function POST(request: NextRequest) {
       let text = "";
       let failure: string | null = null;
       try {
-        const claude = streamWriting(kind, ctx.profileForAi, ctx.user, request.signal);
+        const claude = streamWriting(kind, ctx.job.sector, ctx.profileForAi, ctx.user, request.signal);
         claude.on("text", (delta) => {
           text += delta;
           controller.enqueue(encoder.encode(delta));

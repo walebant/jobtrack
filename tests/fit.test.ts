@@ -103,3 +103,20 @@ describe("sortJobs", () => {
     expect(parseDir("sideways")).toBe("natural");
   });
 });
+
+describe("score cap and when criteria are assessed", () => {
+  const gapAt = (text: string) =>
+    reply({ score: 8, verdict: "apply", criteria: [{ text, type: "essential", rating: "gap", evidence: "Not shown." }] });
+
+  it("does not cap the score for a gap assessed only at interview or by a test", () => {
+    const f = normaliseFit(gapAt("Presentation skills"), { "Presentation skills": ["interview"] });
+    expect(f).toMatchObject({ score: 8, verdict: "apply", capped: false });
+    const t = normaliseFit(gapAt("Excel test"), { "excel  TEST": ["test"] });
+    expect(t.capped).toBe(false);
+  });
+
+  it("still caps a gap assessed at application, or with no marker", () => {
+    expect(normaliseFit(gapAt("SQL"), { SQL: ["application", "interview"] }).score).toBe(6);
+    expect(normaliseFit(gapAt("SQL"), {}).score).toBe(6);
+  });
+});

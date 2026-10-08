@@ -1,4 +1,5 @@
-import type { Criterion } from "@/lib/db/schema";
+import { ASSESSED_LABEL } from "@/lib/ai/sector";
+import type { AssessedAt, Criterion } from "@/lib/db/schema";
 import { cn } from "@/lib/utils";
 import { Chip } from "./chips";
 
@@ -55,16 +56,30 @@ export function sortCriteria(criteria: Criterion[]): Criterion[] {
   );
 }
 
-export function CriterionCard({ c }: { c: Criterion }) {
-  const r = RATING[c.rating];
+// assessedAt: how the person specification says this criterion is assessed.
+// A gap in something only assessed at interview or by a test is shown as
+// "Assessed later" rather than a red gap, since it does not count at application.
+export function CriterionCard({ c, assessedAt = [] }: { c: Criterion; assessedAt?: AssessedAt[] }) {
+  const later = assessedAt.length > 0 && !assessedAt.includes("application");
+  const r = c.rating === "gap" && later ? { label: "Assessed later", tone: null } : RATING[c.rating];
   return (
     <div className="rounded-xl border bg-card px-3 py-2.5">
       <div className="flex items-start justify-between gap-2">
         <span>
-          <span className="block text-xs text-muted-foreground">{c.type === "essential" ? "Essential" : "Desirable"}</span>
+          <span className="block text-xs text-muted-foreground">
+            {c.type === "essential" ? "Essential" : "Desirable"}
+            {assessedAt.length > 0 && <> · Assessed at {assessedAt.map((a) => ASSESSED_LABEL[a].toLowerCase()).join(", ")}</>}
+          </span>
           {c.text}
         </span>
-        <span className={cn("inline-block shrink-0 rounded-full px-2 py-0.5 text-xs whitespace-nowrap", TONE_CHIP[r.tone])}>{r.label}</span>
+        <span
+          className={cn(
+            "inline-block shrink-0 rounded-full px-2 py-0.5 text-xs whitespace-nowrap",
+            r.tone ? TONE_CHIP[r.tone] : "bg-muted text-muted-foreground",
+          )}
+        >
+          {r.label}
+        </span>
       </div>
       {c.evidence && <p className="mt-1.5 text-sm text-muted-foreground">{c.evidence}</p>}
     </div>

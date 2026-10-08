@@ -11,6 +11,8 @@ import type { JobStatus } from "@/lib/jobs/stages";
 import { submitWithoutReset } from "@/lib/forms-client";
 import { formatUkDate, todayUk } from "@/lib/dates";
 import { STATUS_LABEL } from "@/lib/jobs/status";
+import { SECTOR_LABEL } from "@/lib/ai/sector";
+import { SECTORS, type Sector } from "@/lib/jobs/stages";
 import { deleteJob, saveOverview, type OverviewState } from "./actions";
 
 export type OverviewJob = {
@@ -26,6 +28,7 @@ export type OverviewJob = {
   interviewTime: string;
   link: string;
   sponsorship: "yes" | "no" | "unknown";
+  sector: Sector;
   contacts: string;
   notes: string;
   submittedAt: string | null;
@@ -61,6 +64,18 @@ export function OverviewTab({ job, history }: Props) {
           <Field name="location" label="Location" value={job.location} />
           <Field name="reference" label="Reference number" value={job.reference} />
           <Field name="closingDate" label="Closing date" value={job.closingDate ?? ""} type="date" />
+          <div>
+            <Label htmlFor="sector" className="mt-3 mb-1.5 text-muted-foreground">
+              Sector (changes how the job is scored and written for)
+            </Label>
+            <select id="sector" name="sector" defaultValue={job.sector} className="h-10 w-full rounded-lg border border-input bg-background px-2.5 text-sm">
+              {SECTORS.map((s) => (
+                <option key={s} value={s}>
+                  {SECTOR_LABEL[s]}
+                </option>
+              ))}
+            </select>
+          </div>
           <div>
             <Label htmlFor="sponsorship" className="mt-3 mb-1.5 text-muted-foreground">
               Visa sponsorship

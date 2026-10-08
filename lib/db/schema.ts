@@ -21,7 +21,7 @@ import {
 } from "drizzle-orm/pg-core";
 import { authenticatedRole, authUsers } from "drizzle-orm/supabase";
 // Relative import: drizzle-kit reads this file without the @/ path alias.
-import { JOB_STATUSES, type JobStatus } from "../jobs/stages";
+import { JOB_STATUSES, SECTORS, type JobStatus, type Sector } from "../jobs/stages";
 
 /* ---------- Enums ---------- */
 
@@ -33,11 +33,22 @@ export const jobSource = pgEnum("job_source", ["paste", "alert", "manual", "gmai
 // Jobs found by Find jobs wait in an inbox until saved (inbox becomes null) or dismissed.
 export const jobInbox = pgEnum("job_inbox", ["suggested", "dismissed"]);
 export const fitVerdict = pgEnum("fit_verdict", ["apply", "maybe", "skip"]);
-export const draftKind = pgEnum("draft_kind", ["statement", "cv_experience", "education"]);
+export const draftKind = pgEnum("draft_kind", ["statement", "cv_experience", "education", "questions"]);
 export const limitUnit = pgEnum("limit_unit", ["words", "characters"]);
+// Who the employer is, so scoring and writing use the right language and expectations.
+export const jobSector = pgEnum("job_sector", SECTORS);
+export { SECTORS, type Sector };
+
+// How each criterion is assessed, keyed by the criterion text: "application",
+// "interview" and/or "test" (person specifications often mark these A / I / T).
+export type AssessedAt = "application" | "interview" | "test";
+export type Assessment = Record<string, AssessedAt[]>;
+
+// Application form questions answered separately (common on council forms).
+export type AppQuestion = { question: string; limit: number | null; unit: "words" | "characters" };
 
 // "Ask me first": Claude's questions and the user's answers, per kind of writing.
-export type WritingQa = Partial<Record<"statement" | "cv_experience" | "education", { question: string; answer: string }[]>>;
+export type WritingQa = Partial<Record<"statement" | "cv_experience" | "education" | "questions", { question: string; answer: string }[]>>;
 
 export type CriterionRating = "met" | "partial" | "gap";
 export type Criterion = {
@@ -167,6 +178,9 @@ export const jobs = pgTable(
     writeLimit: integer("write_limit"),
     writeLimitUnit: limitUnit("write_limit_unit").notNull().default("words"),
     writingQa: jsonb("writing_qa").$type<WritingQa>().notNull().default({}),
+    sector: jobSector("sector").notNull().default("other"),
+    assessment: jsonb("assessment").$type<Assessment>().notNull().default({}),
+    appQuestions: jsonb("app_questions").$type<AppQuestion[]>().notNull().default([]),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },

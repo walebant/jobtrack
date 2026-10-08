@@ -11,7 +11,19 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { noDash } from "@/lib/ai/clean";
-import { REVIEW_MARKER, WRITING_KINDS, WRITING_LABEL, countWords, splitReview, type WritingKind } from "@/lib/ai/writing";
+import {
+  REVIEW_MARKER,
+  WRITING_KINDS,
+  WRITING_LABEL,
+  answersForExport,
+  countWords,
+  joinAnswers,
+  splitAnswers,
+  splitReview,
+  type WritingKind,
+} from "@/lib/ai/writing";
+import type { AppQuestion } from "@/lib/db/schema";
+import { AnswersView, AppQuestionsEditor } from "./app-questions";
 import { formatUkDate } from "@/lib/dates";
 import { submitWithoutReset } from "@/lib/forms-client";
 import { cn } from "@/lib/utils";
@@ -40,6 +52,8 @@ type Props = {
   writeLimit: number | null;
   writeLimitUnit: "words" | "characters";
   questions: { question: string; answer: string }[];
+  // The application form's own questions (for the Application questions piece).
+  appQuestions: AppQuestion[];
   versions: DraftVersion[]; // this piece only, newest first
 };
 
@@ -80,9 +94,16 @@ export function WritingTab(p: Props) {
             </Link>{" "}
             tab.
           </p>
-          {p.piece === "statement" && (
-            <StatementInputs jobId={p.jobId} whyNotes={p.whyNotes} writeLimit={p.writeLimit} writeLimitUnit={p.writeLimitUnit} />
+          {(p.piece === "statement" || p.piece === "questions") && (
+            <StatementInputs
+              jobId={p.jobId}
+              whyNotes={p.whyNotes}
+              writeLimit={p.writeLimit}
+              writeLimitUnit={p.writeLimitUnit}
+              showLimit={p.piece === "statement"}
+            />
           )}
+          {p.piece === "questions" && <AppQuestionsEditor jobId={p.jobId} questions={p.appQuestions} />}
           <AskFirst jobId={p.jobId} kind={p.piece} questions={p.questions} />
           <DraftEditor key={`${p.piece}-${p.versions[0]?.id ?? "none"}`} {...p} />
         </>
@@ -91,11 +112,23 @@ export function WritingTab(p: Props) {
   );
 }
 
-function StatementInputs({ jobId, whyNotes, writeLimit, writeLimitUnit }: { jobId: string; whyNotes: string; writeLimit: number | null; writeLimitUnit: "words" | "characters" }) {
+function StatementInputs({
+  jobId,
+  whyNotes,
+  writeLimit,
+  writeLimitUnit,
+  showLimit,
+}: {
+  jobId: string;
+  whyNotes: string;
+  writeLimit: number | null;
+  writeLimitUnit: "words" | "characters";
+  showLimit: boolean;
+}) {
   const [state, action, saving] = useActionState<InputsState, FormData>(saveWritingInputs, { status: "idle" });
   return (
     <details className="mb-4 rounded-xl border bg-card px-4 py-3" open={!whyNotes}>
-      <summary className="cursor-pointer font-medium">Why this role, and the word limit</summary>
+      <summary className="cursor-pointer font-medium">{showLimit ? "Why this role, and the word limit" : "Why this role"}</summary>
       <form onSubmit={(e) => submitWithoutReset(e, action)}>
         <input type="hidden" name="jobId" value={jobId} />
         <Label htmlFor="whyNotes" className="mt-3 mb-1.5 text-muted-foreground">
@@ -109,7 +142,8 @@ function StatementInputs({ jobId, whyNotes, writeLimit, writeLimitUnit }: { jobI
           className="min-h-20 bg-background"
         />
         <div className="mt-3 flex flex-wrap items-end gap-3">
-          <div>
+          {/* The statement's limit is kept as it is when saving from the questions piece. */}
+          <div className={cn(!showLimit && "hidden")}>
             <Label htmlFor="writeLimit" className="mb-1.5 text-muted-foreground">
               Limit in the advert (optional)
             </Label>
@@ -119,7 +153,7 @@ function StatementInputs({ jobId, whyNotes, writeLimit, writeLimitUnit }: { jobI
             name="writeLimitUnit"
             defaultValue={writeLimitUnit}
             aria-label="Limit unit"
-            className="h-10 rounded-lg border border-input bg-background px-2.5 text-sm"
+            className={cn("h-10 rounded-lg border border-input bg-background px-2.5 text-sm", !showLimit && "hidden")}
           >
             <option value="words">words</option>
             <option value="characters">characters</option>
@@ -204,7 +238,8 @@ function AskFirst({ jobId, kind, questions }: { jobId: string; kind: WritingKind
 
 const ERROR_MARK = "[[ERROR]]";
 
-function DraftEditor({ jobId, jobTitle, piece, applied, writeLimit, writeLimitUnit, versions }: Props) {
+function DraftEditor({ jobId, jobTitle, piece, applied, writeLimit, writeLimitUnit, versions, appQuestions }: Props) {
+  const isQuestions = piece === "questions";
   const router = useRouter();
   const [selectedId, setSelectedId] = useState(versions[0]?.id ?? null);
   const selected = versions.find((v) => v.id === selectedId) ?? versions[0] ?? null;
@@ -225,6 +260,10 @@ function DraftEditor({ jobId, jobTitle, piece, applied, writeLimit, writeLimitUn
   const over = limit !== null && used > limit;
   const dirty = selected ? text !== selected.content : text.trim() !== "";
   const sentVersion = versions.find((v) => v.isSent);
+  const answers = isQuestions ? splitAnswers(shown, appQuestions.length) : [];
+  // What Copy and the downloads use: every question with its answer, or the text as it is.
+  const exportText = isQuestions ? answersForExport(appQuestions, answers) : shown;
+  const noQuestions = isQuestions && appQuestions.length === 0;
 
   async function write() {
     if (dirty && !confirm("You have unsaved edits. Write a new version anyway?")) return;
@@ -285,7 +324,7 @@ function DraftEditor({ jobId, jobTitle, piece, applied, writeLimit, writeLimitUn
 
   async function copy() {
     try {
-      await navigator.clipboard.writeText(shown);
+      await navigator.clipboard.writeText(exportText);
       toast("Copied");
     } catch {
       toast("Could not copy. Select the text and copy it instead.");
@@ -298,8 +337,14 @@ function DraftEditor({ jobId, jobTitle, piece, applied, writeLimit, writeLimitUn
     <section aria-label={WRITING_LABEL[piece]}>
       <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap items-center gap-2">
-          <Button onClick={write} disabled={streaming || saving}>
-            {streaming ? "Writing…" : versions.length ? "Write again" : `Write my ${WRITING_LABEL[piece].toLowerCase()}`}
+          <Button onClick={write} disabled={streaming || saving || noQuestions}>
+            {streaming
+              ? "Writing…"
+              : versions.length
+                ? "Write again"
+                : isQuestions
+                  ? "Write my answers"
+                  : `Write my ${WRITING_LABEL[piece].toLowerCase()}`}
           </Button>
           {streaming && (
             <Button variant="outline" onClick={() => abortRef.current?.abort()}>
@@ -335,21 +380,36 @@ function DraftEditor({ jobId, jobTitle, piece, applied, writeLimit, writeLimitUn
 
       {versions.length === 0 && !streaming ? (
         <p className="rounded-xl border border-dashed px-4 py-6 text-center text-muted-foreground">
-          Nothing written yet. Press the button above to write a first draft. You can edit it, keep versions and download it.
+          {noQuestions
+            ? "Add the application form's questions above, then write your answers."
+            : "Nothing written yet. Press the button above to write a first draft. You can edit it, keep versions and download it."}
         </p>
       ) : (
         <>
-          <Textarea
-            aria-label={`${WRITING_LABEL[piece]} text`}
-            value={shown}
-            readOnly={streaming}
-            onChange={(e) => setText(e.target.value)}
-            className={cn("min-h-[420px] bg-background leading-relaxed", streaming && "opacity-90")}
-          />
+          {isQuestions ? (
+            <AnswersView
+              questions={appQuestions}
+              answers={answers}
+              readOnly={streaming}
+              onChange={(i, value) => setText(joinAnswers(answers.map((a, k) => (k === i ? value : a))))}
+            />
+          ) : (
+            <Textarea
+              aria-label={`${WRITING_LABEL[piece]} text`}
+              value={shown}
+              readOnly={streaming}
+              onChange={(e) => setText(e.target.value)}
+              className={cn("min-h-[420px] bg-background leading-relaxed", streaming && "opacity-90")}
+            />
+          )}
           <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-sm">
             <span className={cn("text-muted-foreground", over && "font-semibold text-bad")}>
-              {words.toLocaleString("en-GB")} words · {chars.toLocaleString("en-GB")} characters
-              {limit !== null && ` · limit ${limit.toLocaleString("en-GB")} ${writeLimitUnit}${over ? " (over the limit)" : ""}`}
+              {!isQuestions && (
+                <>
+                  {words.toLocaleString("en-GB")} words · {chars.toLocaleString("en-GB")} characters
+                  {limit !== null && ` · limit ${limit.toLocaleString("en-GB")} ${writeLimitUnit}${over ? " (over the limit)" : ""}`}
+                </>
+              )}
             </span>
             <span className="flex flex-wrap items-center gap-1.5">
               {selected?.isSent && <Badge>Sent{applied ? " · locked" : ""}</Badge>}
@@ -362,12 +422,12 @@ function DraftEditor({ jobId, jobTitle, piece, applied, writeLimit, writeLimitUn
                 Save edits as new version
               </Button>
               <Button variant="outline" onClick={copy}>
-                Copy
+                {isQuestions ? "Copy all answers" : "Copy"}
               </Button>
-              <Button variant="outline" onClick={() => downloadDocx(shown, stem)}>
+              <Button variant="outline" onClick={() => downloadDocx(exportText, stem)}>
                 Download .docx
               </Button>
-              <Button variant="outline" onClick={() => downloadTxt(shown, stem)}>
+              <Button variant="outline" onClick={() => downloadTxt(exportText, stem)}>
                 Download .txt
               </Button>
               {selected && !selected.isSent && !(applied && sentVersion) && (

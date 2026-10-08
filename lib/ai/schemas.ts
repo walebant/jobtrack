@@ -1,11 +1,23 @@
 import { z } from "zod";
+import { judgedAtApplication } from "./sector";
+import type { AppQuestion, Assessment, AssessedAt } from "@/lib/db/schema";
 
 // Shapes the model must return (sent as structured outputs, so replies always parse).
 // Kept to plain strings and enums; the normalise* helpers below tidy the values.
 
+const CriterionSchema = z.object({
+  text: z.string().describe("One short, specific criterion, keeping its meaning exactly"),
+  assessedAt: z
+    .array(z.enum(["application", "interview", "test"]))
+    .describe('How the person specification says it is assessed (often marked A, I or T). Empty if not stated.'),
+});
+
 export const AdvertSchema = z.object({
   title: z.string().describe("Job title as written in the advert"),
   employer: z.string().describe("Employing organisation, e.g. the NHS trust or council"),
+  sector: z
+    .enum(["nhs", "council", "other"])
+    .describe('"nhs" for NHS organisations, "council" for local authorities, "other" for any other employer'),
   band: z.string().describe('Pay band or grade, e.g. "Band 5", or a council grade; "" if not stated'),
   salary: z.string().describe('Salary or range as written; "" if not stated'),
   location: z.string().describe('Main work location; "" if not stated'),
@@ -15,8 +27,17 @@ export const AdvertSchema = z.object({
   sponsorship: z
     .enum(["yes", "no", "unknown"])
     .describe('"yes" only if visa sponsorship is said to be possible, "no" if it is ruled out, otherwise "unknown"'),
-  essential: z.array(z.string()).describe("Essential person specification criteria, one short criterion each"),
-  desirable: z.array(z.string()).describe("Desirable person specification criteria, one short criterion each"),
+  essential: z.array(CriterionSchema).describe("Essential person specification criteria"),
+  desirable: z.array(CriterionSchema).describe("Desirable person specification criteria"),
+  applicationQuestions: z
+    .array(
+      z.object({
+        question: z.string().describe("The question exactly as written"),
+        limit: z.number().int().describe("Its word or character limit, or 0 if none is given"),
+        unit: z.enum(["words", "characters"]),
+      }),
+    )
+    .describe("Questions the application form asks the candidate to answer separately, if the text lists them; otherwise empty"),
 });
 export type AdvertReply = z.infer<typeof AdvertSchema>;
 
@@ -55,12 +76,16 @@ export type FitReply = z.infer<typeof FitSchema>;
 // PRD scoring rule: a missing essential criterion caps the score at 6.
 export const ESSENTIAL_GAP_CAP = 6;
 
-export function normaliseFit(f: FitReply) {
+// Gaps in criteria assessed only at interview or by a test do not cap the score:
+// the panel does not judge them from the application.
+export function normaliseFit(f: FitReply, assessment: Assessment = {}) {
   const criteria = f.criteria
     .map((c) => ({ ...c, text: c.text.trim().slice(0, 500), evidence: c.evidence.trim().slice(0, 1500) }))
     .filter((c) => c.text)
     .slice(0, MAX_CRITERIA * 2);
-  const essentialGap = criteria.some((c) => c.type === "essential" && c.rating === "gap");
+  const essentialGap = criteria.some(
+    (c) => c.type === "essential" && c.rating === "gap" && judgedAtApplication(c.text, assessment),
+  );
   let score = Math.min(10, Math.max(1, Math.round(f.score)));
   if (essentialGap) score = Math.min(score, ESSENTIAL_GAP_CAP);
   // Keep the verdict consistent with a capped score.
@@ -94,24 +119,46 @@ export function toHttpUrl(value: string): string {
 
 const field = (s: string) => s.replace(/\s+/g, " ").trim().slice(0, MAX_FIELD);
 
-function criteriaList(items: string[]): string[] {
+type RawCriterion = { text: string; assessedAt: AssessedAt[] };
+
+// Tidies and de-duplicates criteria; collects their "assessed at" markers into `assessment`.
+function criteriaList(items: RawCriterion[], assessment: Assessment): string[] {
   const seen = new Set<string>();
   const out: string[] = [];
   for (const raw of items) {
-    const c = raw.replace(/^[\s\-•*·]+/, "").replace(/\s+/g, " ").trim().slice(0, 500);
+    const c = raw.text.replace(/^[\s\-•*·]+/, "").replace(/\s+/g, " ").trim().slice(0, 500);
     const key = c.toLowerCase();
     if (c && !seen.has(key)) {
       seen.add(key);
       out.push(c);
+      const at = [...new Set(raw.assessedAt)];
+      if (at.length) assessment[c] = at;
     }
   }
   return out.slice(0, MAX_CRITERIA);
 }
 
+const MAX_QUESTIONS = 15;
+
+export function normaliseQuestions(items: { question: string; limit: number; unit: "words" | "characters" }[]): AppQuestion[] {
+  return items
+    .map((q) => ({
+      question: q.question.replace(/\s+/g, " ").trim().slice(0, 1_000),
+      limit: Number.isInteger(q.limit) && q.limit >= 20 && q.limit <= 20_000 ? q.limit : null,
+      unit: q.unit,
+    }))
+    .filter((q) => q.question)
+    .slice(0, MAX_QUESTIONS);
+}
+
 export function normaliseAdvert(a: AdvertReply) {
+  const assessment: Assessment = {};
+  const essential = criteriaList(a.essential, assessment);
+  const desirable = criteriaList(a.desirable, assessment);
   return {
     title: field(a.title),
     employer: field(a.employer),
+    sector: a.sector,
     band: field(a.band),
     salary: field(a.salary),
     location: field(a.location),
@@ -119,8 +166,10 @@ export function normaliseAdvert(a: AdvertReply) {
     closingDate: toIsoDate(a.closingDate),
     link: toHttpUrl(a.link),
     sponsorship: a.sponsorship,
-    essential: criteriaList(a.essential),
-    desirable: criteriaList(a.desirable),
+    essential,
+    desirable,
+    assessment,
+    appQuestions: normaliseQuestions(a.applicationQuestions),
   };
 }
 export type NormalisedAdvert = ReturnType<typeof normaliseAdvert>;
