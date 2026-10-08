@@ -1,12 +1,13 @@
 "use server";
 
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, desc, eq } from "drizzle-orm";
+import { todayUk } from "@/lib/dates";
 import { refresh } from "next/cache";
 import { redirect } from "next/navigation";
 import { MAX_ADVERT_CHARS, readAdvert } from "@/lib/ai/client";
 import { aiErrorMessage } from "@/lib/ai/errors";
 import { consumeAiCall } from "@/lib/ai/usage";
-import { cvs, jobDocuments, jobs, type Job } from "@/lib/db/schema";
+import { cvs, jobDocuments, jobStatusHistory, jobs, type Job } from "@/lib/db/schema";
 import { requireUserId, userDb } from "@/lib/db/user";
 import { OverviewInput, firstIssue, formFields } from "@/lib/forms";
 import { scoreJob, type ScoreOutcome } from "@/lib/jobs/score";
@@ -68,16 +69,46 @@ export async function saveOverview(_prev: OverviewState, formData: FormData): Pr
   const parsed = OverviewInput.safeParse(formFields(formData));
   if (!parsed.success) return { status: "error", message: firstIssue(parsed.error) };
   const userId = await requireUserId();
-  const rows = await userDb((tx) =>
-    tx
-      .update(jobs)
-      .set(parsed.data)
-      .where(and(eq(jobs.id, jobId), eq(jobs.userId, userId)))
-      .returning({ id: jobs.id }),
-  );
-  if (!rows.length) return { status: "error", message: "That job could not be found." };
+  const { appliedDate, ...fields } = parsed.data;
+
+  const result = await userDb(async (tx) => {
+    const [job] = await tx
+      .select({ status: jobs.status, submittedAt: jobs.submittedAt })
+      .from(jobs)
+      .where(and(eq(jobs.id, jobId), eq(jobs.userId, userId)));
+    if (!job) return null;
+
+    const set: Partial<typeof jobs.$inferInsert> = { ...fields };
+    const current = job.submittedAt ? todayUk(job.submittedAt) : null;
+    // Noon UTC keeps the same calendar day in UK time, summer or winter.
+    const appliedAt = appliedDate ? new Date(`${appliedDate}T12:00:00Z`) : null;
+    let moved = false;
+    if (appliedDate !== current) {
+      set.submittedAt = appliedAt;
+      // Entering a date applied means the application has gone in.
+      if (appliedAt && (job.status === "saved" || job.status === "applying")) {
+        set.status = "submitted";
+        moved = true;
+      }
+    }
+    await tx.update(jobs).set(set).where(eq(jobs.id, jobId));
+
+    // Show the real date in the stage history too (the trigger logs "now").
+    if (appliedAt && appliedDate !== current) {
+      const [row] = await tx
+        .select({ id: jobStatusHistory.id })
+        .from(jobStatusHistory)
+        .where(and(eq(jobStatusHistory.jobId, jobId), eq(jobStatusHistory.status, "submitted")))
+        .orderBy(desc(jobStatusHistory.changedAt))
+        .limit(1);
+      if (row) await tx.update(jobStatusHistory).set({ changedAt: appliedAt }).where(eq(jobStatusHistory.id, row.id));
+    }
+    return { moved };
+  });
+
+  if (!result) return { status: "error", message: "That job could not be found." };
   refresh();
-  return { status: "ok", message: "Changes saved." };
+  return { status: "ok", message: result.moved ? "Changes saved and the job moved to Submitted." : "Changes saved." };
 }
 
 // Deletes a job with its scores, documents and history (they cascade).

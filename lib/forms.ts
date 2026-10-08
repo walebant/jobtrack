@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { toHttpUrl, toIsoDate } from "@/lib/ai/schemas";
+import { todayUk } from "@/lib/dates";
 import { BANDS, STAFF_GROUPS, type Band, type StaffGroup } from "@/lib/nhsjobs/constants";
 
 // Checks for everything the browser sends to a server action.
@@ -71,6 +72,8 @@ export const OverviewInput = z.object({
   reference: text(100),
   closingDate: optionalDate,
   interviewDate: optionalDate,
+  // The day the application was sent (YYYY-MM-DD), never in the future.
+  appliedDate: optionalDate.refine((d) => d === null || d <= todayUk(), "The date applied cannot be in the future."),
   interviewTime: z
     .string()
     .trim()

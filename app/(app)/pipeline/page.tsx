@@ -171,7 +171,7 @@ function JobTable({ jobs }: { jobs: JobListItem[] }) {
                   {j.score !== null ? <FitChip score={j.score} /> : <NotScoredChip hasCriteria={j.hasCriteria} />}
                 </td>
                 <td className="px-2.5 py-2.5 whitespace-nowrap">
-                  <StatusSelect jobId={j.id} status={j.status} title={j.title} compact />
+                  <StatusSelect key={j.status} jobId={j.id} status={j.status} title={j.title} compact />
                 </td>
                 <td className="px-2.5 py-2.5 whitespace-nowrap">
                   {interview && j.status === "interview" ? (

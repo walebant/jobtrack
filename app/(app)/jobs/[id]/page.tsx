@@ -75,7 +75,7 @@ export default async function JobPage(props: PageProps<"/jobs/[id]">) {
         <h2 className="text-[21px] font-bold">{job.title || "Untitled job"}</h2>
         <p className="text-muted-foreground">{[job.employer, job.band, job.salary].filter(Boolean).join(" · ")}</p>
         <div className="mt-2 flex flex-wrap items-center gap-1.5">
-          <StatusSelect jobId={job.id} status={job.status} title={job.title} />
+          <StatusSelect key={job.status} jobId={job.id} status={job.status} title={job.title} />
           {interview && <InterviewChip info={interview} />}
           {job.closingDate && <Chip>Closes {formatUkDate(job.closingDate)}</Chip>}
           {closingDateMatters(job.status) && <ClosingChip closingDate={job.closingDate} />}

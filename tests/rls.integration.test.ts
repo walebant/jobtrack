@@ -112,6 +112,26 @@ describe.skipIf(!ready)("row level security", { timeout: 30_000 }, () => {
     expect(cleared).toHaveLength(0);
   });
 
+  it("keeps a date applied that the user entered when the job moves to Submitted", async () => {
+    const appliedAt = new Date("2026-09-15T12:00:00Z");
+    const [job] = await withUser(a, (tx) => tx.insert(jobs).values({ title: "Backdated job" }).returning());
+    const [updated] = await withUser(a, (tx) =>
+      tx.update(jobs).set({ status: "submitted", submittedAt: appliedAt }).where(eq(jobs.id, job.id)).returning(),
+    );
+    expect(updated.submittedAt?.toISOString()).toBe(appliedAt.toISOString());
+
+    // The app then moves the logged "submitted" entry to the date applied; owners may do that.
+    const history = await withUser(a, (tx) =>
+      tx.update(jobStatusHistory).set({ changedAt: appliedAt }).where(eq(jobStatusHistory.jobId, job.id)).returning(),
+    );
+    expect(history.length).toBeGreaterThan(0);
+    // Another user cannot touch it.
+    const other = await withUser(b, (tx) =>
+      tx.update(jobStatusHistory).set({ changedAt: new Date() }).where(eq(jobStatusHistory.jobId, job.id)).returning(),
+    );
+    expect(other).toHaveLength(0);
+  });
+
   it("keeps CVs private, allows one default, and links jobs only to the owner's CVs", async () => {
     const [cvA] = await withUser(a, (tx) => tx.insert(cvs).values({ name: "A main", cvText: "A", isDefault: true }).returning());
     const [cvB] = await withUser(b, (tx) => tx.insert(cvs).values({ name: "B main", cvText: "B", isDefault: true }).returning());

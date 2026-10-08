@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import type { JobStatus } from "@/lib/jobs/stages";
 import { submitWithoutReset } from "@/lib/forms-client";
-import { formatUkDate } from "@/lib/dates";
+import { formatUkDate, todayUk } from "@/lib/dates";
 import { STATUS_LABEL } from "@/lib/jobs/status";
 import { deleteJob, saveOverview, type OverviewState } from "./actions";
 
@@ -71,6 +71,14 @@ export function OverviewTab({ job, history }: Props) {
               <option value="no">Not offered</option>
             </select>
           </div>
+          <Field
+            name="appliedDate"
+            label="Date applied"
+            value={job.submittedAt ? todayUk(new Date(job.submittedAt)) : ""}
+            type="date"
+            max={todayUk()}
+          />
+          <div className="hidden sm:block" aria-hidden />
           <Field name="interviewDate" label="Interview date" value={job.interviewDate ?? ""} type="date" />
           <Field name="interviewTime" label="Interview time" value={job.interviewTime} type="time" />
         </div>
