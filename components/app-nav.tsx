@@ -15,7 +15,7 @@ const LINKS = [
 export function AppNav() {
   const pathname = usePathname();
   return (
-    <nav aria-label="Main" className="flex gap-1 overflow-x-auto rounded-xl bg-muted p-1">
+    <nav aria-label="Main" className="scroll-row flex gap-1 rounded-xl bg-muted p-1">
       {LINKS.map(({ href, label }) => {
         const active = pathname === href || pathname.startsWith(href + "/");
         return (

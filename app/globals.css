@@ -125,6 +125,16 @@
   }
 }
 
+/* Rows of tabs that scroll sideways on small screens, without a visible scrollbar. */
+@utility scroll-row {
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

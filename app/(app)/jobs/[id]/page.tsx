@@ -86,7 +86,7 @@ export default async function JobPage(props: PageProps<"/jobs/[id]">) {
             </a>
           )}
         </div>
-        <nav aria-label="Job sections" className="mt-3 flex gap-0.5 overflow-x-auto">
+        <nav aria-label="Job sections" className="scroll-row mt-3 flex gap-0.5">
           {TABS.map(([key, label]) => (
             <Link
               key={key}

@@ -46,7 +46,7 @@ type Props = {
 export function WritingTab(p: Props) {
   return (
     <div>
-      <nav aria-label="What to write" className="mb-4 flex gap-1 overflow-x-auto rounded-xl bg-muted p-1 text-sm">
+      <nav aria-label="What to write" className="scroll-row mb-4 flex gap-1 rounded-xl bg-muted p-1 text-sm">
         {WRITING_KINDS.map((k) => (
           <Link
             key={k}
