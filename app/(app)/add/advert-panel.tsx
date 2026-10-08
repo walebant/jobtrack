@@ -70,7 +70,11 @@ function SavedJob({ job, fit, seconds }: { job: SavedJobSummary; fit: SavedFit; 
         Saved{"score" in fit ? " and scored" : ""} in {seconds} seconds
       </p>
       <div className="mt-1 flex items-start justify-between gap-3">
-        <h3 className="text-lg font-bold">{job.title}</h3>
+        <h3 className="text-lg font-bold">
+          <Link href={`/jobs/${job.id}?tab=overview`} className="underline-offset-2 hover:underline">
+            {job.title}
+          </Link>
+        </h3>
         {"score" in fit && <FitChip score={fit.score} className="mt-1" />}
       </div>
       {"score" in fit ? (
@@ -149,6 +153,15 @@ function ManualForm() {
         {saving ? "Saving…" : "Save job"}
       </Button>
       {state.status === "error" && <StatusLine message={state.message} error />}
+      {state.status === "saved" && (
+        <p role="status" className="mt-2 text-sm">
+          Saved{" "}
+          <Link href={`/jobs/${state.id}?tab=overview`} className="font-semibold underline underline-offset-2">
+            {state.title}
+          </Link>
+          . Open it to add details, a JD or the advert.
+        </p>
+      )}
     </form>
   );
 }

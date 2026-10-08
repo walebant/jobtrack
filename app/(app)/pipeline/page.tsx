@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { formatUkDate } from "@/lib/dates";
 import { getPipelineSummary, listJobs, type JobListItem } from "@/lib/db/queries";
 import { userDb } from "@/lib/db/user";
-import { parseSort, sortJobs, type JobSort } from "@/lib/jobs/sort";
+import { parseDir, parseSort, sortJobs, type JobSort, type SortDir } from "@/lib/jobs/sort";
 import {
   STAGE_GROUPS,
   closingDateMatters,
@@ -25,13 +25,15 @@ export const metadata: Metadata = { title: "Pipeline · Job Search Tracker" };
 // Scoring several jobs in a row calls Claude once per job.
 export const maxDuration = 120;
 
-const SORT_LABEL: Record<JobSort, string> = { fit: "Best fit", closing: "Closing soonest", newest: "Newest" };
 const SOURCE_LABEL = { paste: "Advert", alert: "Alert email", manual: "Manual", gmail: "Gmail", nhs_jobs: "Find jobs" } as const;
 
-function pipelineHref(stage: StageGroup, sort: JobSort) {
+type View = { stage: StageGroup; sort: JobSort; dir: SortDir };
+
+function pipelineHref({ stage, sort, dir }: View) {
   const q = new URLSearchParams();
   if (stage !== "all") q.set("stage", stage);
   if (sort !== "fit") q.set("sort", sort);
+  if (dir !== "natural") q.set("dir", dir);
   const s = q.toString();
   return s ? `/pipeline?${s}` : "/pipeline";
 }
@@ -39,6 +41,7 @@ function pipelineHref(stage: StageGroup, sort: JobSort) {
 export default async function PipelinePage(props: PageProps<"/pipeline">) {
   const params = await props.searchParams;
   const sort = parseSort(params.sort);
+  const dir = parseDir(params.dir);
   const stage = parseStageGroup(params.stage);
   const { summary, jobs } = await userDb(async (tx) => ({
     summary: await getPipelineSummary(tx),
@@ -48,6 +51,7 @@ export default async function PipelinePage(props: PageProps<"/pipeline">) {
   const shown = sortJobs(
     jobs.filter((j) => inStageGroup(j.status, stage)),
     sort,
+    dir,
   );
   // Unscored jobs that can still be applied for, soonest closing first.
   const unscored = summary.hasCv
@@ -86,7 +90,7 @@ export default async function PipelinePage(props: PageProps<"/pipeline">) {
             {(Object.keys(STAGE_GROUPS) as StageGroup[]).map((g) => (
               <Link
                 key={g}
-                href={pipelineHref(g, sort)}
+                href={pipelineHref({ stage: g, sort, dir })}
                 aria-current={stage === g ? "page" : undefined}
                 className={cn(
                   "-mb-px border-b-2 border-transparent px-3 py-2 text-sm font-medium whitespace-nowrap text-muted-foreground",
@@ -98,24 +102,11 @@ export default async function PipelinePage(props: PageProps<"/pipeline">) {
             ))}
           </nav>
 
-          <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
-            <nav aria-label="Sort jobs" className="flex gap-1 rounded-xl bg-muted p-1 text-sm">
-              {(Object.keys(SORT_LABEL) as JobSort[]).map((s) => (
-                <Link
-                  key={s}
-                  href={pipelineHref(stage, s)}
-                  aria-current={sort === s ? "page" : undefined}
-                  className={cn(
-                    "rounded-[9px] px-3 py-1.5 font-medium whitespace-nowrap text-muted-foreground",
-                    sort === s && "bg-card text-foreground shadow-sm",
-                  )}
-                >
-                  {SORT_LABEL[s]}
-                </Link>
-              ))}
-            </nav>
-            {unscored.length > 0 && <ScoreAll jobIds={unscored} />}
-          </div>
+          {unscored.length > 0 && (
+            <div className="mb-3 flex justify-end">
+              <ScoreAll jobIds={unscored} />
+            </div>
+          )}
           {!summary.hasCv && (
             <p className="mb-3 text-sm text-mid">
               Jobs cannot be scored until your CV is saved. <CvTip inline />
@@ -126,7 +117,7 @@ export default async function PipelinePage(props: PageProps<"/pipeline">) {
               Change a job&apos;s stage from its row or its page and it will show here.
             </EmptyState>
           ) : (
-            <JobTable jobs={shown} />
+            <JobTable jobs={shown} view={{ stage, sort, dir }} />
           )}
         </>
       )}
@@ -143,17 +134,56 @@ function CvTip({ inline }: { inline?: boolean }) {
   return inline ? <>Add it in {link}.</> : <p className="mt-2 text-sm">Tip: add your CV in {link} first so jobs can be scored.</p>;
 }
 
-function JobTable({ jobs }: { jobs: JobListItem[] }) {
+// Each column's first-click order, in plain words and as an aria-sort value.
+const COLUMN: Record<JobSort, { label: string; natural: string; reversed: string; ascendingWhenNatural: boolean }> = {
+  title: { label: "Job", natural: "A to Z", reversed: "Z to A", ascendingWhenNatural: true },
+  fit: { label: "Fit", natural: "best fit first", reversed: "lowest fit first", ascendingWhenNatural: false },
+  stage: { label: "Stage", natural: "earliest stage first", reversed: "latest stage first", ascendingWhenNatural: true },
+  closing: { label: "Dates", natural: "closing soonest first", reversed: "closing latest first", ascendingWhenNatural: true },
+  newest: { label: "Added", natural: "newest first", reversed: "oldest first", ascendingWhenNatural: false },
+};
+
+// A column header that sorts the table: first click sorts it, a second click reverses it.
+function SortHeader({ column, view, className }: { column: JobSort; view: View; className?: string }) {
+  const c = COLUMN[column];
+  const active = view.sort === column;
+  const nextDir: SortDir = active && view.dir === "natural" ? "reversed" : "natural";
+  const ascending = active ? (view.dir === "natural") === c.ascendingWhenNatural : undefined;
+  return (
+    <th
+      scope="col"
+      aria-sort={active ? (ascending ? "ascending" : "descending") : "none"}
+      className={cn("px-2.5 py-2 font-semibold", className)}
+    >
+      <Link
+        href={pipelineHref({ ...view, sort: column, dir: nextDir })}
+        title={`Sort by ${c.label.toLowerCase()}, ${nextDir === "natural" ? c.natural : c.reversed}`}
+        className={cn("inline-flex items-center gap-1 rounded-md hover:text-foreground", active && "text-foreground")}
+      >
+        {c.label}
+        <span aria-hidden className={cn("text-[10px]", !active && "opacity-0")}>
+          {ascending ? "▲" : "▼"}
+        </span>
+      </Link>
+    </th>
+  );
+}
+
+function JobTable({ jobs, view }: { jobs: JobListItem[]; view: View }) {
   return (
     <div className="overflow-x-auto rounded-2xl border bg-card px-2.5 py-1.5">
       <table className="w-full border-collapse text-sm">
+        <caption className="sr-only">
+          Your jobs, sorted by {COLUMN[view.sort].label.toLowerCase()}, {view.dir === "natural" ? COLUMN[view.sort].natural : COLUMN[view.sort].reversed}.
+          Select a column heading to sort by it.
+        </caption>
         <thead>
           <tr className="text-left text-xs text-muted-foreground">
-            <th className="px-2.5 py-2 font-semibold">Job</th>
-            <th className="px-2.5 py-2 font-semibold">Fit</th>
-            <th className="px-2.5 py-2 font-semibold">Stage</th>
-            <th className="px-2.5 py-2 font-semibold">Dates</th>
-            <th className="hidden px-2.5 py-2 font-semibold md:table-cell">Added</th>
+            <SortHeader column="title" view={view} />
+            <SortHeader column="fit" view={view} />
+            <SortHeader column="stage" view={view} />
+            <SortHeader column="closing" view={view} />
+            <SortHeader column="newest" view={view} className="hidden md:table-cell" />
           </tr>
         </thead>
         <tbody>

@@ -114,13 +114,16 @@ export async function saveFoundJobs(picked: unknown): Promise<{ ok: true; count:
   return { ok: true, count: parsed.data.length };
 }
 
-export type ManualState = { status: "idle" } | { status: "error"; message: string } | { status: "saved"; title: string; at: number };
+export type ManualState =
+  | { status: "idle" }
+  | { status: "error"; message: string }
+  | { status: "saved"; id: string; title: string; at: number };
 
 export async function addManualJob(_prev: ManualState, formData: FormData): Promise<ManualState> {
   const parsed = ManualJobInput.safeParse(formFields(formData));
   if (!parsed.success) return { status: "error", message: firstIssue(parsed.error) };
 
-  await userDb((tx) => tx.insert(jobs).values({ ...parsed.data, source: "manual" }));
+  const [job] = await userDb((tx) => tx.insert(jobs).values({ ...parsed.data, source: "manual" }).returning({ id: jobs.id }));
   refresh();
-  return { status: "saved", title: parsed.data.title, at: Date.now() };
+  return { status: "saved", id: job.id, title: parsed.data.title, at: Date.now() };
 }

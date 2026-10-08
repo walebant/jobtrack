@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { StatusLine } from "@/components/panel";
 import { Button } from "@/components/ui/button";
 import { formatUkDate } from "@/lib/dates";
+import { FileDrop } from "@/components/file-drop";
 import { createClient } from "@/lib/supabase/client";
 import { addJobDocument, deleteJobDocument, getJobDocumentLink, readCriteriaFromDocuments } from "./actions";
 
@@ -22,30 +23,47 @@ export function JobDocuments({ jobId, userId, documents, hasCriteria }: { jobId:
   const [message, setMessage] = useState<{ text: string; error?: boolean }>();
   const [working, start] = useTransition();
 
-  async function onFile(file: File | undefined) {
-    if (!file) return;
+  // Uploads one file; returns false if it was refused or failed.
+  async function onFile(file: File | undefined): Promise<boolean> {
+    if (!file) return false;
     const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
-    if (!TYPES[ext]) return setMessage({ text: "Upload a .pdf or .docx file.", error: true });
-    if (file.size > MAX_BYTES) return setMessage({ text: "That file is over 10 MB.", error: true });
+    if (!TYPES[ext]) {
+      setMessage({ text: `"${file.name}" is not a .pdf or .docx file.`, error: true });
+      return false;
+    }
+    if (file.size > MAX_BYTES) {
+      setMessage({ text: `"${file.name}" is over 10 MB.`, error: true });
+      return false;
+    }
     setUploading(true);
-    setMessage({ text: "Uploading and reading the document…" });
+    setMessage({ text: `Uploading and reading "${file.name}"…` });
     try {
       const path = `${userId}/${jobId}/${Date.now()}.${ext}`;
       const { error } = await createClient().storage.from("job-docs").upload(path, file, { contentType: TYPES[ext], upsert: false });
       if (error) throw error;
       const result = await addJobDocument(jobId, path, file.name);
-      if (!result.ok) return setMessage({ text: result.message, error: true });
+      if (!result.ok) {
+        setMessage({ text: result.message, error: true });
+        return false;
+      }
       setMessage({
         text: hasCriteria
           ? "Document added. It will be used when this job is scored and written about."
           : "Document added. Press Read criteria from documents to pull out the person specification.",
       });
+      return true;
     } catch {
       setMessage({ text: "The upload failed. Check your connection and try again.", error: true });
+      return false;
     } finally {
       setUploading(false);
       if (fileRef.current) fileRef.current.value = "";
     }
+  }
+
+  // Several files (dropped or picked) upload one after another, stopping at the first problem.
+  async function uploadMany(files: File[]) {
+    for (const file of files) if (!(await onFile(file))) break;
   }
 
   function download(doc: Doc) {
@@ -79,12 +97,13 @@ export function JobDocuments({ jobId, userId, documents, hasCriteria }: { jobId:
   }
 
   return (
-    <section aria-labelledby="docs-heading" className="mb-6 rounded-2xl border bg-card p-4">
+    <FileDrop onFiles={uploadMany} disabled={uploading || working} label="Drop to upload (.pdf or .docx)" className="mb-6">
+    <section aria-labelledby="docs-heading" className="rounded-2xl border bg-card p-4">
       <h3 id="docs-heading" className="text-base font-bold">
         Job description and person specification
       </h3>
       <p className="mt-1 text-sm text-muted-foreground">
-        Upload the JD or person specification (.pdf or .docx). Its text is used to score this job and to tailor your writing.
+        Drag the JD or person specification here, or upload it (.pdf or .docx). Its text is used to score this job and to tailor your writing.
       </p>
 
       {documents.length > 0 && (
@@ -117,7 +136,8 @@ export function JobDocuments({ jobId, userId, documents, hasCriteria }: { jobId:
           accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
           className="sr-only"
           aria-label="Job document file"
-          onChange={(e) => onFile(e.target.files?.[0])}
+          multiple
+          onChange={(e) => uploadMany(Array.from(e.target.files ?? []))}
           disabled={uploading}
         />
         <Button variant="outline" onClick={() => fileRef.current?.click()} disabled={uploading || working}>
@@ -131,5 +151,6 @@ export function JobDocuments({ jobId, userId, documents, hasCriteria }: { jobId:
       </div>
       {message && <StatusLine message={message.text} error={message.error} />}
     </section>
+    </FileDrop>
   );
 }

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useActionState, useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
+import { FileDrop } from "@/components/file-drop";
 import { Panel, StatusLine } from "@/components/panel";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -159,21 +160,23 @@ function CvEditor({ cv, userId, onDuplicate, busy }: { cv: CvItem; userId: strin
         </div>
       </div>
 
-      <div className="mt-3 flex flex-wrap items-center gap-2.5">
-        <input
-          ref={fileRef}
-          type="file"
-          accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-          className="sr-only"
-          aria-label="CV file"
-          onChange={(e) => onFile(e.target.files?.[0])}
-          disabled={uploading}
-        />
-        <Button type="button" variant="outline" disabled={uploading} onClick={() => fileRef.current?.click()}>
-          {uploading ? "Reading CV…" : cv.hasFile ? "Upload a new file" : "Upload CV (.pdf or .docx)"}
-        </Button>
-        <span className="text-sm text-muted-foreground">The text replaces what is in the box below.</span>
-      </div>
+      <FileDrop onFiles={(files) => onFile(files[0])} disabled={uploading} label="Drop your CV to upload it" className="mt-3">
+        <div className="flex flex-wrap items-center gap-2.5 rounded-xl border border-dashed bg-background px-3 py-3">
+          <input
+            ref={fileRef}
+            type="file"
+            accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            className="sr-only"
+            aria-label="CV file"
+            onChange={(e) => onFile(e.target.files?.[0])}
+            disabled={uploading}
+          />
+          <Button type="button" variant="outline" disabled={uploading} onClick={() => fileRef.current?.click()}>
+            {uploading ? "Reading CV…" : cv.hasFile ? "Upload a new file" : "Upload CV (.pdf or .docx)"}
+          </Button>
+          <span className="text-sm text-muted-foreground">or drag the file here. The text replaces what is in the box below.</span>
+        </div>
+      </FileDrop>
       {uploadMsg && <StatusLine message={uploadMsg.text} error={uploadMsg.error} />}
 
       <Label htmlFor="cvText" className="mt-3 mb-1.5 text-muted-foreground">
