@@ -6,7 +6,7 @@ import { StatusLine } from "@/components/panel";
 import { Button } from "@/components/ui/button";
 import { formatUkDate } from "@/lib/dates";
 import { createClient } from "@/lib/supabase/client";
-import { addJobDocument, deleteJobDocument, readCriteriaFromDocuments } from "./actions";
+import { addJobDocument, deleteJobDocument, getJobDocumentLink, readCriteriaFromDocuments } from "./actions";
 
 const MAX_BYTES = 10 * 1024 * 1024;
 const TYPES: Record<string, string> = {
@@ -48,6 +48,20 @@ export function JobDocuments({ jobId, userId, documents, hasCriteria }: { jobId:
     }
   }
 
+  function download(doc: Doc) {
+    start(async () => {
+      const result = await getJobDocumentLink(doc.id);
+      if (!result.ok) return void toast(result.message);
+      // The link carries a download name, so the browser saves the file instead of navigating.
+      const a = document.createElement("a");
+      a.href = result.url;
+      a.rel = "noopener";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    });
+  }
+
   function remove(doc: Doc) {
     if (!confirm(`Remove "${doc.name}"?`)) return;
     start(async () => {
@@ -83,9 +97,14 @@ export function JobDocuments({ jobId, userId, documents, hasCriteria }: { jobId:
                   {Math.round(d.chars / 6).toLocaleString("en-GB")} words · added {formatUkDate(d.createdAt)}
                 </span>
               </span>
-              <Button size="sm" variant="outline" onClick={() => remove(d)} disabled={working}>
-                Remove
-              </Button>
+              <span className="flex shrink-0 gap-1.5">
+                <Button size="sm" variant="outline" onClick={() => download(d)} disabled={working}>
+                  Download
+                </Button>
+                <Button size="sm" variant="outline" onClick={() => remove(d)} disabled={working}>
+                  Remove
+                </Button>
+              </span>
             </li>
           ))}
         </ul>

@@ -11,6 +11,7 @@ import { requireUserId, userDb } from "@/lib/db/user";
 import { OverviewInput, firstIssue, formFields } from "@/lib/forms";
 import { scoreJob, type ScoreOutcome } from "@/lib/jobs/score";
 import { isJobStatus } from "@/lib/jobs/status";
+import { createClient } from "@/lib/supabase/server";
 import { readUploadedText, removeUploads } from "@/lib/uploads";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -199,6 +200,26 @@ export async function addJobDocument(jobId: string, path: string, name: string):
   );
   refresh();
   return { ok: true, chars: result.text.length };
+}
+
+// A private download link for an uploaded document, valid for one minute.
+export async function getJobDocumentLink(documentId: string): Promise<{ ok: true; url: string } | { ok: false; message: string }> {
+  const userId = await requireUserId();
+  const [doc] = await userDb((tx) =>
+    tx
+      .select({ name: jobDocuments.name, path: jobDocuments.filePath })
+      .from(jobDocuments)
+      .where(and(eq(jobDocuments.id, String(documentId)), eq(jobDocuments.userId, userId))),
+  );
+  if (!doc) return { ok: false, message: "That document could not be found." };
+  // Keep the original name, making sure it ends with the file's real extension.
+  const ext = doc.path.split(".").pop() ?? "pdf";
+  const filename = doc.name.toLowerCase().endsWith(`.${ext}`) ? doc.name : `${doc.name}.${ext}`;
+  const { data, error } = await (await createClient()).storage
+    .from("job-docs")
+    .createSignedUrl(doc.path, 60, { download: filename });
+  if (error || !data) return { ok: false, message: "The file could not be found. Try uploading it again." };
+  return { ok: true, url: data.signedUrl };
 }
 
 export async function deleteJobDocument(documentId: string): Promise<{ ok: boolean }> {
