@@ -58,8 +58,19 @@ export function jobBlock(j: {
   essential: string[];
   desirable: string[];
   advertText: string;
+  // Uploaded job descriptions and person specifications.
+  documents?: { name: string; text: string }[];
 }) {
   const list = (items: string[]) => (items.length ? items.map((x) => `- ${x}`).join("\n") : "(none listed)");
+  let budget = 30_000;
+  const docs = (j.documents ?? [])
+    .filter((d) => d.text.trim())
+    .map((d) => {
+      const text = d.text.slice(0, Math.max(0, budget));
+      budget -= text.length;
+      return text ? `\n\n<job_document name="${d.name.replace(/"/g, "'")}">\n${text}\n</job_document>` : "";
+    })
+    .join("");
   return `<job>
 Title: ${j.title}
 Employer: ${j.employer}
@@ -74,7 +85,7 @@ Desirable criteria:
 ${list(j.desirable)}
 
 Full advert:
-${j.advertText.slice(0, 25_000) || "(not provided)"}
+${j.advertText.slice(0, 25_000) || "(not provided)"}${docs}
 </job>`;
 }
 

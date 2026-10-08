@@ -99,6 +99,31 @@ export const evidence = pgTable(
   (t) => [index("evidence_user_idx").on(t.userId), ownerOnly("evidence", t.userId)],
 );
 
+// The user's CVs (for example "Data and analyst", "Admin and patient-facing").
+// One is the default. The evidence bank and profile notes are shared by all CVs.
+export const cvs = pgTable(
+  "cvs",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: userId(),
+    name: text("name").notNull(),
+    cvText: text("cv_text").notNull().default(""),
+    filePath: text("file_path"),
+    // What this CV is for, sent to Claude with it (for example "for data analyst roles").
+    focus: text("focus").notNull().default(""),
+    isDefault: boolean("is_default").notNull().default(false),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    // Target for jobs' (cv_id, user_id) foreign key, added in a custom migration.
+    unique("cvs_id_user_id_key").on(t.id, t.userId),
+    // At most one default CV per user.
+    uniqueIndex("cvs_one_default_idx").on(t.userId).where(sql`${t.isDefault}`),
+    ownerOnly("cvs", t.userId),
+  ],
+);
+
 export const jobs = pgTable(
   "jobs",
   {
@@ -129,6 +154,9 @@ export const jobs = pgTable(
     externalRef: text("external_ref"),
     // null = in the pipeline; "suggested" / "dismissed" = found by Find jobs.
     inbox: jobInbox("inbox"),
+    // The CV to score and write with; null = the default CV. Foreign key
+    // (cv_id, user_id) -> cvs(id, user_id) ON DELETE SET NULL (cv_id) is in the migration.
+    cvId: uuid("cv_id"),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
@@ -174,6 +202,9 @@ export const fitScores = pgTable(
     summary: text("summary").notNull(),
     criteria: jsonb("criteria").$type<Criterion[]>().notNull().default([]),
     model: text("model").notNull(),
+    // Which CV was scored. The name is kept as written then, in case the CV is renamed or deleted.
+    cvId: uuid("cv_id"),
+    cvName: text("cv_name").notNull().default(""),
     createdAt: createdAt(),
   },
   (t) => [
@@ -269,7 +300,29 @@ export const aiUsage = pgTable(
   ],
 );
 
+// Job descriptions and person specifications uploaded for a job (.pdf or .docx).
+// The file lives in the private job-docs bucket; its text is kept here for prompts.
+export const jobDocuments = pgTable(
+  "job_documents",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: userId(),
+    jobId: uuid("job_id").notNull(),
+    name: text("name").notNull(),
+    filePath: text("file_path").notNull(),
+    text: text("text").notNull().default(""),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    jobRef(t, "job_documents_job_fk"),
+    index("job_documents_job_idx").on(t.jobId),
+    ownerOnly("job_documents", t.userId),
+  ],
+);
+
 export type Profile = typeof profiles.$inferSelect;
+export type Cv = typeof cvs.$inferSelect;
+export type JobDocument = typeof jobDocuments.$inferSelect;
 export type Evidence = typeof evidence.$inferSelect;
 export type Job = typeof jobs.$inferSelect;
 export type NewJob = typeof jobs.$inferInsert;

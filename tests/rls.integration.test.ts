@@ -7,7 +7,7 @@ import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { adminDb, withUser, type JwtClaims } from "@/lib/db";
 import { consumeAiCall } from "@/lib/ai/usage";
-import { aiUsage, fitScores, jobs, jobStatusHistory, profiles } from "@/lib/db/schema";
+import { aiUsage, cvs, fitScores, jobDocuments, jobs, jobStatusHistory, profiles } from "@/lib/db/schema";
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -112,9 +112,36 @@ describe.skipIf(!ready)("row level security", { timeout: 30_000 }, () => {
     expect(cleared).toHaveLength(0);
   });
 
+  it("keeps CVs private, allows one default, and links jobs only to the owner's CVs", async () => {
+    const [cvA] = await withUser(a, (tx) => tx.insert(cvs).values({ name: "A main", cvText: "A", isDefault: true }).returning());
+    const [cvB] = await withUser(b, (tx) => tx.insert(cvs).values({ name: "B main", cvText: "B", isDefault: true }).returning());
+    expect(await withUser(b, (tx) => tx.select().from(cvs))).toHaveLength(1);
+
+    // A second default for the same user is refused.
+    await expect(withUser(a, (tx) => tx.insert(cvs).values({ name: "A2", isDefault: true }))).rejects.toThrow();
+
+    // A job can use its owner's CV, never someone else's.
+    await withUser(a, (tx) => tx.update(jobs).set({ cvId: cvA.id }).where(eq(jobs.id, jobA)));
+    await expect(withUser(a, (tx) => tx.update(jobs).set({ cvId: cvB.id }).where(eq(jobs.id, jobA)))).rejects.toThrow();
+
+    // Deleting the CV clears only the job's cv_id.
+    await withUser(a, (tx) => tx.delete(cvs).where(eq(cvs.id, cvA.id)));
+    const [job] = await withUser(a, (tx) => tx.select().from(jobs).where(eq(jobs.id, jobA)));
+    expect(job.cvId).toBeNull();
+    expect(job.userId).toBe(a.sub);
+  });
+
+  it("keeps job documents private and tied to the owner's jobs", async () => {
+    await withUser(a, (tx) => tx.insert(jobDocuments).values({ jobId: jobA, name: "JD.pdf", filePath: `${a.sub}/${jobA}/1.pdf`, text: "x" }));
+    expect(await withUser(b, (tx) => tx.select().from(jobDocuments))).toHaveLength(0);
+    await expect(
+      withUser(b, (tx) => tx.insert(jobDocuments).values({ jobId: jobA, name: "x", filePath: `${b.sub}/x.pdf` })),
+    ).rejects.toThrow();
+  });
+
   it("gives signed-out API callers nothing", async () => {
     const anon = createClient(url!, anonKey!, { auth: { persistSession: false } });
-    for (const table of ["profiles", "jobs", "job_status_history", "fit_scores", "drafts", "prep_questions", "evidence", "ai_usage", "job_searches"]) {
+    for (const table of ["profiles", "jobs", "job_status_history", "fit_scores", "drafts", "prep_questions", "evidence", "ai_usage", "job_searches", "cvs", "job_documents"]) {
       const { data } = await anon.from(table).select("*");
       expect(data ?? []).toHaveLength(0);
     }

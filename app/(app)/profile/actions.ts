@@ -1,72 +1,110 @@
 "use server";
 
-import { and, eq } from "drizzle-orm";
+import { and, asc, count, eq, ne } from "drizzle-orm";
 import { refresh } from "next/cache";
-import { MAX_CV_BYTES, extractCvText } from "@/lib/cv/extract";
-import { evidence, profiles } from "@/lib/db/schema";
+import { cvs, evidence, profiles } from "@/lib/db/schema";
 import { requireUserId, userDb } from "@/lib/db/user";
-import { EvidenceInput, ProfileInput, firstIssue, formFields } from "@/lib/forms";
-import { createClient } from "@/lib/supabase/server";
+import { CvInput, EvidenceInput, NotesInput, firstIssue, formFields } from "@/lib/forms";
+import { readUploadedText, removeUploads, type ReadResult } from "@/lib/uploads";
 
 export type FormState = { status: "idle" | "ok" | "error"; message?: string; at?: number };
 
-export async function saveProfile(_prev: FormState, formData: FormData): Promise<FormState> {
-  const parsed = ProfileInput.safeParse(formFields(formData));
-  if (!parsed.success) return { status: "error", message: firstIssue(parsed.error) };
-  const { cvText, notes } = parsed.data;
+const MAX_CVS = 10;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+// "Anything else Claude should know" (shared by all CVs).
+export async function saveNotes(_prev: FormState, formData: FormData): Promise<FormState> {
+  const parsed = NotesInput.safeParse(formFields(formData));
+  if (!parsed.success) return { status: "error", message: firstIssue(parsed.error) };
+  const { notes } = parsed.data;
   await userDb((tx, userId) =>
-    tx
-      .insert(profiles)
-      .values({ userId, cvText, notes })
-      .onConflictDoUpdate({ target: profiles.userId, set: { cvText, notes } }),
+    tx.insert(profiles).values({ userId, notes }).onConflictDoUpdate({ target: profiles.userId, set: { notes } }),
   );
   refresh();
-  return { status: "ok", message: "Profile saved.", at: Date.now() };
+  return { status: "ok", message: "Notes saved.", at: Date.now() };
 }
 
-export type ExtractResult = { ok: true; text: string } | { ok: false; message: string };
+export async function saveCv(_prev: FormState, formData: FormData): Promise<FormState> {
+  const id = String(formData.get("id") ?? "");
+  const parsed = CvInput.safeParse(formFields(formData));
+  if (!parsed.success) return { status: "error", message: firstIssue(parsed.error) };
+  const rows = await userDb((tx, userId) =>
+    tx.update(cvs).set(parsed.data).where(and(eq(cvs.id, id), eq(cvs.userId, userId))).returning({ id: cvs.id }),
+  );
+  if (!rows.length) return { status: "error", message: "That CV no longer exists." };
+  refresh();
+  return { status: "ok", message: "CV saved.", at: Date.now() };
+}
 
-// Reads the text out of a CV the browser has just uploaded to the private cvs bucket.
-export async function extractUploadedCv(path: string): Promise<ExtractResult> {
+// A new CV, empty or copied from another. The first CV becomes the default.
+export async function createCv(copyFromId?: string): Promise<{ ok: true; id: string } | { ok: false; message: string }> {
+  return userDb(async (tx) => {
+    const [{ n }] = await tx.select({ n: count() }).from(cvs);
+    if (n >= MAX_CVS) return { ok: false as const, message: `You can keep up to ${MAX_CVS} CVs.` };
+    const [source] = copyFromId && UUID.test(copyFromId) ? await tx.select().from(cvs).where(eq(cvs.id, copyFromId)) : [];
+    const [created] = await tx
+      .insert(cvs)
+      .values({
+        name: source ? `${source.name} (copy)`.slice(0, 80) : n === 0 ? "Main CV" : `CV ${n + 1}`,
+        cvText: source?.cvText ?? "",
+        focus: source?.focus ?? "",
+        isDefault: n === 0,
+      })
+      .returning({ id: cvs.id });
+    refresh();
+    return { ok: true as const, id: created.id };
+  });
+}
+
+export async function setDefaultCv(id: string): Promise<{ ok: boolean }> {
   const userId = await requireUserId();
-  if (typeof path !== "string" || !path.startsWith(`${userId}/`) || path.includes("..")) {
-    return { ok: false, message: "That upload could not be found. Try again." };
-  }
+  const ok = await userDb(async (tx) => {
+    const [target] = await tx.select({ id: cvs.id }).from(cvs).where(and(eq(cvs.id, String(id)), eq(cvs.userId, userId)));
+    if (!target) return false;
+    // Clear the old default first: the database allows only one.
+    await tx
+      .update(cvs)
+      .set({ isDefault: false })
+      .where(and(eq(cvs.userId, userId), ne(cvs.id, target.id), eq(cvs.isDefault, true)));
+    await tx.update(cvs).set({ isDefault: true }).where(eq(cvs.id, target.id));
+    return true;
+  });
+  refresh();
+  return { ok };
+}
 
-  // The user's own session: storage RLS only lets them read their own folder.
-  const supabase = await createClient();
-  const bucket = supabase.storage.from("cvs");
-  const { data: file, error } = await bucket.download(path);
-  if (error || !file) return { ok: false, message: "That upload could not be found. Try again." };
-  if (file.size > MAX_CV_BYTES) {
-    await bucket.remove([path]);
-    return { ok: false, message: "That file is over 10 MB. Upload a smaller copy." };
-  }
+// Jobs that used this CV switch to the default. If it was the default, the oldest other CV takes over.
+export async function deleteCv(id: string): Promise<{ ok: boolean }> {
+  const userId = await requireUserId();
+  const removed = await userDb(async (tx) => {
+    const [row] = await tx.delete(cvs).where(and(eq(cvs.id, String(id)), eq(cvs.userId, userId))).returning();
+    if (row?.isDefault) {
+      const [next] = await tx.select({ id: cvs.id }).from(cvs).orderBy(asc(cvs.createdAt)).limit(1);
+      if (next) await tx.update(cvs).set({ isDefault: true }).where(eq(cvs.id, next.id));
+    }
+    return row ?? null;
+  });
+  if (removed) await removeUploads("cvs", [removed.filePath]);
+  refresh();
+  return { ok: Boolean(removed) };
+}
 
-  let text = "";
-  try {
-    text = await extractCvText(Buffer.from(await file.arrayBuffer()));
-  } catch (e) {
-    console.error("[cv] text extraction failed", e);
-  }
-  if (!text) {
-    await bucket.remove([path]);
-    return {
-      ok: false,
-      message: "No text could be read from that file. If it is a scanned PDF, paste your CV into the box instead.",
-    };
-  }
-
-  // Keep only the latest upload.
-  const previous = await userDb(async (tx, uid) => {
-    const [row] = await tx.select({ path: profiles.cvFilePath }).from(profiles).where(eq(profiles.userId, uid));
-    await tx.update(profiles).set({ cvFilePath: path }).where(eq(profiles.userId, uid));
+// Reads the text of a CV file just uploaded for the given CV. The text goes back to
+// the browser to check before saving; the file replaces the CV's previous upload.
+export async function extractUploadedCv(path: string, cvId: string): Promise<ReadResult> {
+  const userId = await requireUserId();
+  const result = await readUploadedText("cvs", path, userId);
+  if (!result.ok) return result;
+  const previous = await userDb(async (tx) => {
+    const [row] = await tx
+      .select({ path: cvs.filePath })
+      .from(cvs)
+      .where(and(eq(cvs.id, String(cvId)), eq(cvs.userId, userId)));
+    if (row) await tx.update(cvs).set({ filePath: path }).where(eq(cvs.id, String(cvId)));
     return row?.path ?? null;
   });
-  if (previous && previous !== path) await bucket.remove([previous]);
-
-  return { ok: true, text };
+  if (previous && previous !== path) await removeUploads("cvs", [previous]);
+  return result;
 }
 
 export async function saveEvidence(_prev: FormState, formData: FormData): Promise<FormState> {

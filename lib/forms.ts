@@ -6,9 +6,14 @@ import { BANDS, STAFF_GROUPS, type Band, type StaffGroup } from "@/lib/nhsjobs/c
 
 const text = (max: number) => z.string().trim().max(max);
 
-export const ProfileInput = z.object({
-  cvText: text(100_000),
+export const NotesInput = z.object({
   notes: text(10_000),
+});
+
+export const CvInput = z.object({
+  name: text(80).min(1, "Give the CV a name."),
+  focus: text(500),
+  cvText: text(100_000),
 });
 
 export const EvidenceInput = z.object({
