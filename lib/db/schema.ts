@@ -315,6 +315,20 @@ export const aiUsage = pgTable(
   ],
 );
 
+// Free notes not tied to any job: links to look at later, ideas, reminders.
+export const notes = pgTable(
+  "notes",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: userId(),
+    body: text("body").notNull(),
+    pinned: boolean("pinned").notNull().default(false),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [index("notes_user_idx").on(t.userId, t.createdAt), ownerOnly("notes", t.userId)],
+);
+
 // Job descriptions and person specifications uploaded for a job (.pdf or .docx).
 // The file lives in the private job-docs bucket; its text is kept here for prompts.
 export const jobDocuments = pgTable(
@@ -338,6 +352,7 @@ export const jobDocuments = pgTable(
 export type Profile = typeof profiles.$inferSelect;
 export type Cv = typeof cvs.$inferSelect;
 export type JobDocument = typeof jobDocuments.$inferSelect;
+export type Note = typeof notes.$inferSelect;
 export type Evidence = typeof evidence.$inferSelect;
 export type Job = typeof jobs.$inferSelect;
 export type NewJob = typeof jobs.$inferInsert;

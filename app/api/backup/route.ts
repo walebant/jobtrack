@@ -10,6 +10,7 @@ import {
   jobSearches,
   jobStatusHistory,
   jobs,
+  notes,
   profiles,
 } from "@/lib/db/schema";
 import { todayUk } from "@/lib/dates";
@@ -31,6 +32,7 @@ export async function GET() {
     fitScores: await tx.select().from(fitScores),
     drafts: await tx.select().from(drafts),
     jobDocuments: await tx.select().from(jobDocuments),
+    notes: await tx.select().from(notes),
     aiUsage: await tx.select().from(aiUsage),
   }));
 

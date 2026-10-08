@@ -161,7 +161,7 @@ describe.skipIf(!ready)("row level security", { timeout: 30_000 }, () => {
 
   it("gives signed-out API callers nothing", async () => {
     const anon = createClient(url!, anonKey!, { auth: { persistSession: false } });
-    for (const table of ["profiles", "jobs", "job_status_history", "fit_scores", "drafts", "prep_questions", "evidence", "ai_usage", "job_searches", "cvs", "job_documents"]) {
+    for (const table of ["profiles", "jobs", "job_status_history", "fit_scores", "drafts", "prep_questions", "evidence", "ai_usage", "job_searches", "cvs", "job_documents", "notes"]) {
       const { data } = await anon.from(table).select("*");
       expect(data ?? []).toHaveLength(0);
     }
