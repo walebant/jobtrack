@@ -1,7 +1,7 @@
 import { and, asc, count, desc, eq, isNull, sql } from "drizzle-orm";
 import { listCvs, pickCv } from "@/lib/cvs";
 import type { Tx } from "./index";
-import { cvs, fitScores, jobDocuments, jobSearches, jobStatusHistory, jobs } from "./schema";
+import { cvs, drafts, fitScores, jobDocuments, jobSearches, jobStatusHistory, jobs } from "./schema";
 
 // All queries run under RLS, so they only ever see the signed-in user's rows.
 
@@ -96,11 +96,13 @@ export async function getJobDetail(tx: Tx, id: string) {
     .orderBy(asc(jobDocuments.createdAt));
   const allCvs = await listCvs(tx);
   const cv = pickCv(allCvs, job.cvId);
+  const draftVersions = await tx.select().from(drafts).where(eq(drafts.jobId, id)).orderBy(desc(drafts.version));
   return {
     job,
     scores,
     history,
     documents,
+    drafts: draftVersions,
     cvs: allCvs.map((c) => ({ id: c.id, name: c.name, isDefault: c.isDefault, usable: Boolean(c.cvText.trim()) })),
     // The CV this job is scored and written with.
     cv: cv ? { id: cv.id, name: cv.name } : null,

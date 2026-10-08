@@ -33,7 +33,11 @@ export const jobSource = pgEnum("job_source", ["paste", "alert", "manual", "gmai
 // Jobs found by Find jobs wait in an inbox until saved (inbox becomes null) or dismissed.
 export const jobInbox = pgEnum("job_inbox", ["suggested", "dismissed"]);
 export const fitVerdict = pgEnum("fit_verdict", ["apply", "maybe", "skip"]);
-export const draftKind = pgEnum("draft_kind", ["statement", "cv_experience"]);
+export const draftKind = pgEnum("draft_kind", ["statement", "cv_experience", "education"]);
+export const limitUnit = pgEnum("limit_unit", ["words", "characters"]);
+
+// "Ask me first": Claude's questions and the user's answers, per kind of writing.
+export type WritingQa = Partial<Record<"statement" | "cv_experience" | "education", { question: string; answer: string }[]>>;
 
 export type CriterionRating = "met" | "partial" | "gap";
 export type Criterion = {
@@ -157,6 +161,12 @@ export const jobs = pgTable(
     // The CV to score and write with; null = the default CV. Foreign key
     // (cv_id, user_id) -> cvs(id, user_id) ON DELETE SET NULL (cv_id) is in the migration.
     cvId: uuid("cv_id"),
+    // Writing inputs: why this role and employer (rough notes), the advert's limit
+    // for the supporting statement, and the "Ask me first" answers.
+    whyNotes: text("why_notes").notNull().default(""),
+    writeLimit: integer("write_limit"),
+    writeLimitUnit: limitUnit("write_limit_unit").notNull().default("words"),
+    writingQa: jsonb("writing_qa").$type<WritingQa>().notNull().default({}),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
@@ -226,6 +236,11 @@ export const drafts = pgTable(
     content: text("content").notNull().default(""),
     version: integer("version").notNull(),
     isSent: boolean("is_sent").notNull().default(false),
+    // The panel check Claude adds after the text (self-score, gaps, [CHECK] items).
+    review: text("review").notNull().default(""),
+    // How this version was made: the CV used and the model ("" for hand edits).
+    cvName: text("cv_name").notNull().default(""),
+    model: text("model").notNull().default(""),
     createdAt: createdAt(),
   },
   (t) => [

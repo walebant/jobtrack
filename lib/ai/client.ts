@@ -2,7 +2,8 @@ import Anthropic from "@anthropic-ai/sdk";
 import { betaZodOutputFormat } from "@anthropic-ai/sdk/helpers/beta/zod";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import { todayUk } from "@/lib/dates";
-import { cleanDeep } from "./clean";
+import { cleanDeep, noDash } from "./clean";
+import { QUESTIONS_SYSTEM, QuestionsSchema, WRITING_LABEL, WRITING_SYSTEM, type WritingKind } from "./writing";
 import { AiError } from "./errors";
 import {
   READ_ADVERT_SYSTEM,
@@ -19,6 +20,7 @@ import { AdvertSchema, AlertSchema, FitSchema, normaliseAdvert, normaliseAlertJo
 export const MODELS = {
   main: "claude-sonnet-5-5", // adverts, scoring, drafts, feedback
   quick: "claude-haiku-4-5-20251001", // alert email extraction
+  writing: "claude-opus-5-5", // supporting statements, work experience, education
 } as const;
 
 // PRD cost limits on what is sent.
@@ -51,14 +53,18 @@ async function call<T>(fn: () => Promise<T>): Promise<T> {
   try {
     return await fn();
   } catch (e) {
-    if (e instanceof AiError) throw e;
-    if (e instanceof Anthropic.AuthenticationError || e instanceof Anthropic.PermissionDeniedError) throw new AiError("config");
-    if (e instanceof Anthropic.RateLimitError) throw new AiError("rate_limited");
-    if (e instanceof Anthropic.APIConnectionTimeoutError) throw new AiError("timeout");
-    if (e instanceof Anthropic.APIError && (e.status === 529 || e.status === 503)) throw new AiError("overloaded");
-    console.error("[ai] request failed", e);
-    throw new AiError("unknown");
+    throw toAiError(e);
   }
+}
+
+export function toAiError(e: unknown): AiError {
+  if (e instanceof AiError) return e;
+  if (e instanceof Anthropic.AuthenticationError || e instanceof Anthropic.PermissionDeniedError) return new AiError("config");
+  if (e instanceof Anthropic.RateLimitError) return new AiError("rate_limited");
+  if (e instanceof Anthropic.APIConnectionTimeoutError) return new AiError("timeout");
+  if (e instanceof Anthropic.APIError && (e.status === 529 || e.status === 503)) return new AiError("overloaded");
+  console.error("[ai] request failed", e);
+  return new AiError("unknown");
 }
 
 // Reads a pasted advert: job fields plus essential and desirable criteria.
@@ -100,6 +106,55 @@ export async function scoreFit(profile: ProfileForAi, job: JobForAi) {
     }),
   );
   return { fit: normaliseFit(cleanDeep(parsedOrThrow(res))), model: res.model };
+}
+
+// "Ask me first": up to 8 questions that would most improve the writing.
+export async function askWritingQuestions(kind: WritingKind, profile: ProfileForAi, job: JobForAi) {
+  const res = await call(() =>
+    anthropic().beta.messages.parse({
+      model: MODELS.writing,
+      max_tokens: 16_000,
+      output_config: { effort: "low", format: betaZodOutputFormat(QuestionsSchema) },
+      betas: ["server-side-fallback-2026-07-01"],
+      fallbacks: "default",
+      system: [
+        { type: "text", text: QUESTIONS_SYSTEM },
+        { type: "text", text: profileBlock(profile), cache_control: { type: "ephemeral" } },
+      ],
+      messages: [
+        { role: "user", content: `I want you to write my ${WRITING_LABEL[kind].toLowerCase()} for this job. What should I tell you first?\n\n${jobBlock(job)}` },
+      ],
+    }),
+  );
+  return parsedOrThrow(res)
+    .questions.map((q) => noDash(q.trim()))
+    .filter(Boolean)
+    .slice(0, 8);
+}
+
+// Starts writing; the caller streams the text. Opus 5.5 at medium effort balances
+// quality with time to first words. The profile block is cached across calls.
+export function streamWriting(
+  kind: WritingKind,
+  profile: ProfileForAi,
+  user: string,
+  signal: AbortSignal,
+) {
+  return anthropic().beta.messages.stream(
+    {
+      model: MODELS.writing,
+      max_tokens: 32_000,
+      output_config: { effort: "medium" },
+      betas: ["server-side-fallback-2026-07-01"],
+      fallbacks: "default",
+      system: [
+        { type: "text", text: WRITING_SYSTEM[kind] },
+        { type: "text", text: profileBlock(profile), cache_control: { type: "ephemeral" } },
+      ],
+      messages: [{ role: "user", content: user }],
+    },
+    { signal },
+  );
 }
 
 // Lists every job in a pasted alert email.

@@ -8,7 +8,8 @@ import { formatUkDate } from "@/lib/dates";
 import { getJobDetail } from "@/lib/db/queries";
 import { userDb } from "@/lib/db/user";
 import { NO_CRITERIA_MESSAGE, NO_CV_MESSAGE } from "@/lib/jobs/score";
-import { closingDateMatters, inStageGroup, interviewInfo } from "@/lib/jobs/status";
+import { WRITING_KINDS, type WritingKind } from "@/lib/ai/writing";
+import { APPLIED_STATUSES, closingDateMatters, inStageGroup, interviewInfo } from "@/lib/jobs/status";
 import { cn } from "@/lib/utils";
 import { DecisionButtons } from "../../find/decision-buttons";
 import { AdvertEditor } from "./advert-editor";
@@ -16,6 +17,7 @@ import { CompareCvs, CvPicker, UseCvButton } from "./cv-controls";
 import { JobDocuments } from "./documents";
 import { OverviewTab } from "./overview-tab";
 import { ScoreButton } from "./score-button";
+import { WritingTab } from "./writing-tab";
 
 export const metadata: Metadata = { title: "Job · Job Search Tracker" };
 // Scoring and re-reading call Claude and can take up to a minute.
@@ -24,6 +26,7 @@ export const maxDuration = 120;
 const TABS = [
   ["overview", "Overview"],
   ["fit", "Fit score"],
+  ["writing", "Writing"],
   ["advert", "Advert and documents"],
 ] as const;
 type Tab = (typeof TABS)[number][0];
@@ -34,7 +37,8 @@ type Detail = NonNullable<Awaited<ReturnType<typeof getJobDetail>>>;
 
 export default async function JobPage(props: PageProps<"/jobs/[id]">) {
   const { id } = await props.params;
-  const { tab: tabParam } = await props.searchParams;
+  const { tab: tabParam, piece: pieceParam } = await props.searchParams;
+  const piece: WritingKind = WRITING_KINDS.includes(pieceParam as WritingKind) ? (pieceParam as WritingKind) : "statement";
   if (!UUID.test(id)) notFound();
   const result = await userDb(async (tx, userId) => ({ detail: await getJobDetail(tx, id), userId }));
   if (!result.detail) notFound();
@@ -107,6 +111,31 @@ export default async function JobPage(props: PageProps<"/jobs/[id]">) {
           />
         ) : tab === "fit" ? (
           <FitTab detail={detail} hasCriteria={hasCriteria} />
+        ) : tab === "writing" ? (
+          <WritingTab
+            jobId={job.id}
+            jobTitle={job.title}
+            piece={piece}
+            applied={APPLIED_STATUSES.has(job.status)}
+            cvName={detail.cv?.name ?? null}
+            whyNotes={job.whyNotes}
+            writeLimit={job.writeLimit}
+            writeLimitUnit={job.writeLimitUnit}
+            questions={job.writingQa[piece] ?? []}
+            versions={detail.drafts
+              .filter((d) => d.kind === piece)
+              .map((d) => ({
+                id: d.id,
+                kind: d.kind,
+                version: d.version,
+                content: d.content,
+                review: d.review,
+                isSent: d.isSent,
+                cvName: d.cvName,
+                model: d.model,
+                createdAt: d.createdAt.toISOString(),
+              }))}
+          />
         ) : (
           <>
             <JobDocuments

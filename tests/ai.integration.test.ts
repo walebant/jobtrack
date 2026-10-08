@@ -2,7 +2,9 @@
 // `npm run test:ai`; skipped when ANTHROPIC_API_KEY is not set.
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { readAdvert, readAlertEmail, scoreFit } from "@/lib/ai/client";
+import { askWritingQuestions, readAdvert, readAlertEmail, scoreFit, streamWriting } from "@/lib/ai/client";
+import { jobBlock } from "@/lib/ai/prompts";
+import { countWords, limitLine, splitReview, writingUser } from "@/lib/ai/writing";
 
 const ready = Boolean(process.env.ANTHROPIC_API_KEY);
 const fixture = (name: string) => readFileSync(`tests/fixtures/${name}`, "utf8");
@@ -59,6 +61,46 @@ describe.skipIf(!ready)("AI extraction", { timeout: 120_000 }, () => {
     const cert = fit.criteria.find((c) => /PL-300|certification/i.test(c.text));
     expect(cert?.rating).toBe("gap");
     expect(JSON.stringify(fit)).not.toContain("—");
+  });
+
+  it("asks questions, then writes a supporting statement with a panel check", { timeout: 300_000 }, async () => {
+    const { advert } = await readAdvert(fixture("advert-band5-analyst.txt"));
+    const profile = { cvText: fixture("cv-sample.txt"), notes: "", evidence: [] };
+    const job = { ...advert, advertText: fixture("advert-band5-analyst.txt") };
+
+    const questions = await askWritingQuestions("statement", profile, job);
+    console.log("questions:", questions);
+    expect(questions.length).toBeGreaterThan(0);
+    expect(questions.length).toBeLessThanOrEqual(8);
+
+    const user = writingUser("statement", {
+      jobBlock: jobBlock(job),
+      whyNotes: "Northshire is my local trust and I want to move from admin reporting into analysis.",
+      limit: limitLine(700, "words"),
+      answers: [],
+    });
+    const started = Date.now();
+    const claude = streamWriting("statement", profile, user, new AbortController().signal);
+    let firstAt = 0;
+    claude.on("text", () => (firstAt ||= Date.now()));
+    const final = await claude.finalMessage();
+    const raw = final.content.flatMap((b) => (b.type === "text" ? [b.text] : [])).join("");
+    const { content, review } = splitReview(raw);
+    console.log(
+      `first words after ${((firstAt - started) / 1000).toFixed(1)}s, done after ${((Date.now() - started) / 1000).toFixed(1)}s, ` +
+        `${countWords(content)} words, model ${final.model}, cache read ${final.usage.cache_read_input_tokens ?? 0}`,
+    );
+    console.log(content);
+    console.log("--- panel check ---\n" + review);
+
+    expect(final.stop_reason).toBe("end_turn");
+    expect(review).not.toBe("");
+    expect(countWords(content)).toBeGreaterThan(300);
+    // The limit is 700 words, counting headings and [CHECK] notes.
+    expect(countWords(content)).toBeLessThanOrEqual(700);
+    expect(raw).not.toContain("—");
+    // Nothing from outside the CV: the only employer in the CV is Riverside Hospitals.
+    expect(content).toMatch(/Riverside/);
   });
 
   it("lists every job in an alert email", async () => {

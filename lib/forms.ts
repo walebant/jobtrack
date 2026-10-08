@@ -81,6 +81,24 @@ export const OverviewInput = z.object({
   notes: text(10_000),
 });
 
+// Writing tab: why this role and employer, and the supporting statement's limit.
+export const WritingInputs = z.object({
+  whyNotes: text(3_000),
+  writeLimit: z
+    .string()
+    .trim()
+    .transform((s, ctx) => {
+      if (!s) return null;
+      const n = Number(s.replace(/,/g, ""));
+      if (!Number.isInteger(n) || n < 50 || n > 20_000) {
+        ctx.addIssue({ code: "custom", message: "Enter a limit between 50 and 20,000, or leave it blank." });
+        return null;
+      }
+      return n;
+    }),
+  writeLimitUnit: z.enum(["words", "characters"]),
+});
+
 export const AdvertInput = z.object({
   advert: z.string().trim().min(80, "Paste the full advert text first."),
   link: optionalLink,
