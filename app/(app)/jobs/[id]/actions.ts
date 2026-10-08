@@ -2,18 +2,71 @@
 
 import { and, eq } from "drizzle-orm";
 import { refresh } from "next/cache";
+import { redirect } from "next/navigation";
 import { MAX_ADVERT_CHARS, readAdvert } from "@/lib/ai/client";
 import { aiErrorMessage } from "@/lib/ai/errors";
 import { consumeAiCall } from "@/lib/ai/usage";
 import { jobs } from "@/lib/db/schema";
 import { requireUserId, userDb } from "@/lib/db/user";
+import { OverviewInput, firstIssue, formFields } from "@/lib/forms";
 import { scoreJob, type ScoreOutcome } from "@/lib/jobs/score";
+import { isJobStatus } from "@/lib/jobs/status";
 
 export async function scoreJobAction(jobId: string): Promise<ScoreOutcome> {
   const userId = await requireUserId();
   const outcome = await scoreJob(userId, String(jobId));
   if (outcome.ok) refresh();
   return outcome;
+}
+
+// Moves a job to a new stage. The database logs the change in job_status_history
+// and sets submitted_at the first time it reaches an applied stage. Changing the
+// stage of a Find jobs suggestion also moves it into the pipeline.
+export async function setJobStatus(jobId: string, status: string): Promise<{ ok: boolean; message?: string }> {
+  if (!isJobStatus(status)) return { ok: false, message: "Unknown stage." };
+  const userId = await requireUserId();
+  const rows = await userDb((tx) =>
+    tx
+      .update(jobs)
+      .set({ status, inbox: null })
+      .where(and(eq(jobs.id, String(jobId)), eq(jobs.userId, userId)))
+      .returning({ id: jobs.id }),
+  );
+  if (!rows.length) return { ok: false, message: "That job could not be found." };
+  refresh();
+  return { ok: true };
+}
+
+export type OverviewState = { status: "idle" | "ok" | "error"; message?: string };
+
+export async function saveOverview(_prev: OverviewState, formData: FormData): Promise<OverviewState> {
+  const jobId = String(formData.get("jobId") ?? "");
+  const parsed = OverviewInput.safeParse(formFields(formData));
+  if (!parsed.success) return { status: "error", message: firstIssue(parsed.error) };
+  const userId = await requireUserId();
+  const rows = await userDb((tx) =>
+    tx
+      .update(jobs)
+      .set(parsed.data)
+      .where(and(eq(jobs.id, jobId), eq(jobs.userId, userId)))
+      .returning({ id: jobs.id }),
+  );
+  if (!rows.length) return { status: "error", message: "That job could not be found." };
+  refresh();
+  return { status: "ok", message: "Changes saved." };
+}
+
+// Deletes a job with its scores, drafts and history (they cascade).
+export async function deleteJob(jobId: string): Promise<{ ok: boolean }> {
+  const userId = await requireUserId();
+  const rows = await userDb((tx) =>
+    tx
+      .delete(jobs)
+      .where(and(eq(jobs.id, String(jobId)), eq(jobs.userId, userId)))
+      .returning({ id: jobs.id }),
+  );
+  if (!rows.length) return { ok: false };
+  redirect("/pipeline");
 }
 
 export type AdvertEditState = { status: "idle" | "ok" | "error"; message?: string; at?: number };

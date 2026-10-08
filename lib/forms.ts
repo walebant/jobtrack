@@ -56,6 +56,26 @@ export const ManualJobInput = z.object({
   link: optionalLink,
 });
 
+// Job details edited on the Overview tab.
+export const OverviewInput = z.object({
+  title: text(300).min(1, "Add the job title."),
+  employer: text(300),
+  band: text(100),
+  salary: text(300),
+  location: text(300),
+  reference: text(100),
+  closingDate: optionalDate,
+  interviewDate: optionalDate,
+  interviewTime: z
+    .string()
+    .trim()
+    .refine((s) => s === "" || /^([01]\d|2[0-3]):[0-5]\d$/.test(s), "Enter the interview time as HH:MM."),
+  link: optionalLink,
+  sponsorship: z.enum(["yes", "no", "unknown"]),
+  contacts: text(2_000),
+  notes: text(10_000),
+});
+
 export const AdvertInput = z.object({
   advert: z.string().trim().min(80, "Paste the full advert text first."),
   link: optionalLink,

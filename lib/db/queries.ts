@@ -1,6 +1,6 @@
-import { and, count, desc, eq, isNull } from "drizzle-orm";
+import { and, asc, count, desc, eq, isNull } from "drizzle-orm";
 import type { Tx } from "./index";
-import { fitScores, jobSearches, jobs, profiles } from "./schema";
+import { fitScores, jobSearches, jobStatusHistory, jobs, profiles } from "./schema";
 
 // All queries run under RLS, so they only ever see the signed-in user's rows.
 
@@ -36,6 +36,8 @@ export async function listJobs(tx: Tx, which: "pipeline" | "suggested" = "pipeli
       location: jobs.location,
       status: jobs.status,
       closingDate: jobs.closingDate,
+      interviewDate: jobs.interviewDate,
+      interviewTime: jobs.interviewTime,
       source: jobs.source,
       essential: jobs.essential,
       desirable: jobs.desirable,
@@ -68,6 +70,11 @@ export async function getJobDetail(tx: Tx, id: string) {
   const [job] = await tx.select().from(jobs).where(eq(jobs.id, id));
   if (!job) return null;
   const scores = await tx.select().from(fitScores).where(eq(fitScores.jobId, id)).orderBy(desc(fitScores.createdAt)).limit(10);
+  const history = await tx
+    .select({ status: jobStatusHistory.status, changedAt: jobStatusHistory.changedAt })
+    .from(jobStatusHistory)
+    .where(eq(jobStatusHistory.jobId, id))
+    .orderBy(asc(jobStatusHistory.changedAt));
   const [profile] = await tx.select({ cvText: profiles.cvText }).from(profiles).limit(1);
-  return { job, scores, hasCv: Boolean(profile?.cvText.trim()) };
+  return { job, scores, history, hasCv: Boolean(profile?.cvText.trim()) };
 }

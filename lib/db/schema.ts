@@ -20,21 +20,12 @@ import {
   type PgColumn,
 } from "drizzle-orm/pg-core";
 import { authenticatedRole, authUsers } from "drizzle-orm/supabase";
+// Relative import: drizzle-kit reads this file without the @/ path alias.
+import { JOB_STATUSES, type JobStatus } from "../jobs/stages";
 
 /* ---------- Enums ---------- */
 
-// Order matters: it is the board's column order.
-export const JOB_STATUSES = [
-  "saved",
-  "applying",
-  "submitted",
-  "shortlisted",
-  "interview",
-  "offer",
-  "rejected",
-  "withdrawn",
-] as const;
-export type JobStatus = (typeof JOB_STATUSES)[number];
+export { JOB_STATUSES, type JobStatus };
 
 export const jobStatus = pgEnum("job_status", JOB_STATUSES);
 export const sponsorship = pgEnum("sponsorship", ["yes", "no", "unknown"]);
@@ -121,6 +112,8 @@ export const jobs = pgTable(
     reference: text("reference").notNull().default(""),
     closingDate: date("closing_date"),
     interviewDate: date("interview_date"),
+    // "HH:MM" (24-hour, UK time), or "" when not known.
+    interviewTime: text("interview_time").notNull().default(""),
     link: text("link").notNull().default(""),
     sponsorship: sponsorship("sponsorship").notNull().default("unknown"),
     advertText: text("advert_text").notNull().default(""),

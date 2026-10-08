@@ -1,16 +1,18 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Chip, ClosingChip } from "@/components/chips";
+import { Chip, ClosingChip, InterviewChip } from "@/components/chips";
+import { StatusSelect } from "@/components/status-select";
 import { CriterionCard, FitDial, VERDICT_LABEL, scoreTone, sortCriteria } from "@/components/fit";
 import { formatUkDate } from "@/lib/dates";
 import { getJobDetail } from "@/lib/db/queries";
 import { userDb } from "@/lib/db/user";
 import { NO_CRITERIA_MESSAGE, NO_CV_MESSAGE } from "@/lib/jobs/score";
-import { STATUS_LABEL, closingDateMatters } from "@/lib/jobs/status";
+import { closingDateMatters, inStageGroup, interviewInfo } from "@/lib/jobs/status";
 import { cn } from "@/lib/utils";
 import { DecisionButtons } from "../../find/decision-buttons";
 import { AdvertEditor } from "./advert-editor";
+import { OverviewTab } from "./overview-tab";
 import { ScoreButton } from "./score-button";
 
 export const metadata: Metadata = { title: "Job · Job Search Tracker" };
@@ -18,6 +20,7 @@ export const metadata: Metadata = { title: "Job · Job Search Tracker" };
 export const maxDuration = 120;
 
 const TABS = [
+  ["overview", "Overview"],
   ["fit", "Fit score"],
   ["advert", "Advert"],
 ] as const;
@@ -31,8 +34,11 @@ export default async function JobPage(props: PageProps<"/jobs/[id]">) {
   if (!UUID.test(id)) notFound();
   const detail = await userDb((tx) => getJobDetail(tx, id));
   if (!detail) notFound();
-  const { job, scores, hasCv } = detail;
-  const tab: Tab = tabParam === "advert" ? "advert" : "fit";
+  const { job, scores, history, hasCv } = detail;
+  // Before applying, the fit score matters most; after, the overview (interview, notes, history).
+  const defaultTab: Tab = inStageGroup(job.status, "active") ? "fit" : "overview";
+  const tab: Tab = TABS.some(([k]) => k === tabParam) ? (tabParam as Tab) : defaultTab;
+  const interview = interviewInfo(job.interviewDate, job.interviewTime);
 
   return (
     <div className="mx-auto max-w-[760px]">
@@ -59,7 +65,8 @@ export default async function JobPage(props: PageProps<"/jobs/[id]">) {
         <h2 className="text-[21px] font-bold">{job.title || "Untitled job"}</h2>
         <p className="text-muted-foreground">{[job.employer, job.band, job.salary].filter(Boolean).join(" · ")}</p>
         <div className="mt-2 flex flex-wrap items-center gap-1.5">
-          <Chip>{STATUS_LABEL[job.status]}</Chip>
+          <StatusSelect jobId={job.id} status={job.status} title={job.title} />
+          {interview && <InterviewChip info={interview} />}
           {job.closingDate && <Chip>Closes {formatUkDate(job.closingDate)}</Chip>}
           {closingDateMatters(job.status) && <ClosingChip closingDate={job.closingDate} />}
           {job.location && <Chip>{job.location}</Chip>}
@@ -73,7 +80,7 @@ export default async function JobPage(props: PageProps<"/jobs/[id]">) {
           {TABS.map(([key, label]) => (
             <Link
               key={key}
-              href={`/jobs/${job.id}${key === "fit" ? "" : `?tab=${key}`}`}
+              href={`/jobs/${job.id}?tab=${key}`}
               aria-current={tab === key ? "page" : undefined}
               className={cn(
                 "border-b-2 border-transparent px-3 py-2 font-medium whitespace-nowrap text-muted-foreground",
@@ -87,7 +94,15 @@ export default async function JobPage(props: PageProps<"/jobs/[id]">) {
       </header>
 
       <section className="pt-4 pb-10">
-        {tab === "fit" ? (
+        {tab === "overview" ? (
+          <OverviewTab
+            job={{
+              ...job,
+              submittedAt: job.submittedAt?.toISOString() ?? null,
+            }}
+            history={history.map((h) => ({ status: h.status, changedAt: h.changedAt.toISOString() }))}
+          />
+        ) : tab === "fit" ? (
           <FitTab jobId={job.id} hasCv={hasCv} hasCriteria={job.essential.length + job.desirable.length > 0} scores={scores} />
         ) : (
           <AdvertEditor jobId={job.id} advert={job.advertText} essential={job.essential} desirable={job.desirable} />
