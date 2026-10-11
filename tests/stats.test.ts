@@ -32,19 +32,34 @@ describe("applied and reached stages", () => {
     expect(isApplied(job({ status: "withdrawn", reached: ["saved", "withdrawn"] }))).toBe(false);
   });
 
-  it("counts shortlisting even after a later rejection", () => {
+  it("counts an interview even after a later rejection", () => {
     const s = computeStats(
       [
-        job({ status: "rejected", submittedAt: new Date(), reached: ["saved", "submitted", "shortlisted", "rejected"] }),
+        job({ status: "rejected", submittedAt: new Date(), reached: ["saved", "submitted", "interview", "rejected"] }),
         job({ status: "rejected", submittedAt: new Date(), reached: ["saved", "submitted", "rejected"] }),
         job({ status: "offer", submittedAt: new Date(), reached: ["submitted", "interview", "offer"] }),
         job({ status: "saved" }),
       ],
       now,
     );
-    expect(s).toMatchObject({ tracked: 4, applied: 3, shortlisted: 2, interviews: 1, offers: 1, shortlistRate: 67 });
-    expect(s.funnel.map((f) => f.count)).toEqual([3, 2, 1, 1]);
-    expect(s.byStage).toMatchObject({ rejected: 2, offer: 1, saved: 1, submitted: 0 });
+    expect(s).toMatchObject({ tracked: 4, applied: 3, shortlisted: 2, interviews: 2, offers: 1, shortlistRate: 67 });
+    expect(s.funnel.map((f) => f.count)).toEqual([3, 2, 1]);
+    expect(s.byStage).toMatchObject({ rejected: 2, offer: 1, saved: 1, submitted: 0, closed: 0 });
+  });
+
+  it("drops stages that were undone by moving the job back", () => {
+    // A slip to Offer, put straight back to Interview.
+    const slip = job({ status: "interview", submittedAt: new Date(), reached: ["saved", "submitted", "interview", "offer", "interview"] });
+    // Marked Submitted by mistake, then back to Saved and Withdrawn.
+    const undone = job({ status: "withdrawn", reached: ["saved", "submitted", "saved", "withdrawn"] });
+    const s = computeStats([slip, undone], now);
+    expect(s).toMatchObject({ applied: 1, interviews: 1, offers: 0 });
+  });
+
+  it("reads retired stages as their replacements", () => {
+    const s = computeStats([job({ status: "shortlisted", reached: ["applying", "submitted", "shortlisted"] })], now);
+    expect(s).toMatchObject({ applied: 1, interviews: 1 });
+    expect(s.byStage).toMatchObject({ interview: 1, saved: 0 });
   });
 });
 
@@ -85,7 +100,7 @@ describe("grouping", () => {
 
   it("works out the shortlist rate by band for applied jobs only", () => {
     const applied = (band: string, shortlisted: boolean) =>
-      job({ band, submittedAt: new Date(), status: shortlisted ? "shortlisted" : "submitted" });
+      job({ band, submittedAt: new Date(), status: shortlisted ? "interview" : "submitted" });
     const s = computeStats([applied("Band 5", true), applied("band 5", false), applied("Band 6", true), job({ band: "Band 7" })], now);
     expect(s.byBand).toEqual([
       { label: "Band 5", applied: 2, shortlisted: 1, rate: 50 },

@@ -10,6 +10,8 @@ describe("stage groups", () => {
     expect(inStageGroup("offer", "offers")).toBe(true);
     expect(inStageGroup("rejected", "closed")).toBe(true);
     expect(inStageGroup("withdrawn", "closed")).toBe(true);
+    expect(inStageGroup("closed", "closed")).toBe(true);
+    expect(inStageGroup("closed", "active")).toBe(false);
     expect(inStageGroup("offer", "applied")).toBe(false);
     expect(inStageGroup("rejected", "all")).toBe(true);
   });
@@ -27,7 +29,10 @@ describe("stage groups", () => {
   it("only accepts known values", () => {
     expect(parseStageGroup("applied")).toBe("applied");
     expect(parseStageGroup("nope")).toBe("all");
-    expect(isJobStatus("shortlisted")).toBe(true);
+    expect(isJobStatus("closed")).toBe(true);
+    // Retired stages can no longer be picked.
+    expect(isJobStatus("shortlisted")).toBe(false);
+    expect(isJobStatus("applying")).toBe(false);
     expect(isJobStatus("hired")).toBe(false);
   });
 });

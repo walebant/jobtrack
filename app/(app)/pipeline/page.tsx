@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
+import { cookies } from "next/headers";
 import Link from "next/link";
 import { EmptyState } from "@/components/empty-state";
 import { Button } from "@/components/ui/button";
-import { getPipelineSummary, listJobs } from "@/lib/db/queries";
+import { closeExpiredJobs, getPipelineSummary, listJobs } from "@/lib/db/queries";
 import { userDb } from "@/lib/db/user";
 import { parseDir, parseSort, sortJobs } from "@/lib/jobs/sort";
 import {
@@ -14,7 +15,8 @@ import {
   type StageGroup,
 } from "@/lib/jobs/status";
 import { cn } from "@/lib/utils";
-import { JobTable, pipelineHref } from "./job-table";
+import { JobTable, pipelineHref, viewQuery } from "./job-table";
+import { PIPELINE_VIEW_COOKIE, RememberView } from "./remember-view";
 import { ScoreAll } from "./score-all";
 
 export const metadata: Metadata = { title: "Pipeline · Job Search Tracker" };
@@ -23,13 +25,16 @@ export const maxDuration = 120;
 
 export default async function PipelinePage(props: PageProps<"/pipeline">) {
   const params = await props.searchParams;
-  const sort = parseSort(params.sort);
-  const dir = parseDir(params.dir);
-  const stage = parseStageGroup(params.stage);
-  const { summary, jobs } = await userDb(async (tx) => ({
-    summary: await getPipelineSummary(tx),
-    jobs: await listJobs(tx),
-  }));
+  // Anything the link leaves out comes from the view last used (tab and sort).
+  const remembered = new URLSearchParams((await cookies()).get(PIPELINE_VIEW_COOKIE)?.value ?? "");
+  const pick = (key: "stage" | "sort" | "dir") => params[key] ?? remembered.get(key);
+  const sort = parseSort(pick("sort"));
+  const dir = parseDir(pick("dir"));
+  const stage = parseStageGroup(pick("stage"));
+  const { summary, jobs } = await userDb(async (tx) => {
+    await closeExpiredJobs(tx);
+    return { summary: await getPipelineSummary(tx), jobs: await listJobs(tx) };
+  });
   const counts = countByGroup(jobs.map((j) => j.status));
   const shown = sortJobs(
     jobs.filter((j) => inStageGroup(j.status, stage)),
@@ -46,6 +51,7 @@ export default async function PipelinePage(props: PageProps<"/pipeline">) {
 
   return (
     <>
+      <RememberView query={viewQuery({ stage, sort, dir })} />
       <div className="mb-3.5 flex flex-wrap items-center justify-between gap-2.5">
         <p className="text-muted-foreground">
           {jobs.length === 0 ? "No jobs tracked yet" : `${jobs.length} job${jobs.length === 1 ? "" : "s"} tracked`}

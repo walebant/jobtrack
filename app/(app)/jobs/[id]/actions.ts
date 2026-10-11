@@ -1,6 +1,6 @@
 "use server";
 
-import { and, asc, desc, eq } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
 import { todayUk } from "@/lib/dates";
 import { refresh } from "next/cache";
 import { redirect } from "next/navigation";
@@ -95,13 +95,22 @@ export async function saveOverview(_prev: OverviewState, formData: FormData): Pr
 
     // Show the real date in the stage history too (the trigger logs "now").
     if (appliedAt && appliedDate !== current) {
-      const [row] = await tx
-        .select({ id: jobStatusHistory.id })
+      const history = await tx
+        .select({ id: jobStatusHistory.id, status: jobStatusHistory.status, changedAt: jobStatusHistory.changedAt })
         .from(jobStatusHistory)
-        .where(and(eq(jobStatusHistory.jobId, jobId), eq(jobStatusHistory.status, "submitted")))
-        .orderBy(desc(jobStatusHistory.changedAt))
-        .limit(1);
-      if (row) await tx.update(jobStatusHistory).set({ changedAt: appliedAt }).where(eq(jobStatusHistory.id, row.id));
+        .where(eq(jobStatusHistory.jobId, jobId))
+        .orderBy(asc(jobStatusHistory.changedAt));
+      const at = history.findLastIndex((h) => h.status === "submitted");
+      if (at >= 0) {
+        await tx.update(jobStatusHistory).set({ changedAt: appliedAt }).where(eq(jobStatusHistory.id, history[at].id));
+        // Stages logged before it must stay before it, a second apart, so the
+        // history still reads (and replays) in the order it happened.
+        const before = history.slice(0, at);
+        for (const [i, h] of before.entries()) {
+          const latest = new Date(appliedAt.getTime() - (before.length - i) * 1000);
+          if (h.changedAt > latest) await tx.update(jobStatusHistory).set({ changedAt: latest }).where(eq(jobStatusHistory.id, h.id));
+        }
+      }
     }
     return { moved };
   });

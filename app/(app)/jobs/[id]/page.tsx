@@ -5,7 +5,7 @@ import { Chip, ClosingChip, InterviewChip } from "@/components/chips";
 import { CriterionCard, FitChip, FitDial, VERDICT_LABEL, scoreTone, sortCriteria } from "@/components/fit";
 import { StatusSelect } from "@/components/status-select";
 import { formatUkDate } from "@/lib/dates";
-import { getJobDetail } from "@/lib/db/queries";
+import { closeExpiredJobs, getJobDetail } from "@/lib/db/queries";
 import { userDb } from "@/lib/db/user";
 import { NO_CRITERIA_MESSAGE, NO_CV_MESSAGE } from "@/lib/jobs/score";
 import { SECTOR_LABEL, assessedFor } from "@/lib/ai/sector";
@@ -41,7 +41,10 @@ export default async function JobPage(props: PageProps<"/jobs/[id]">) {
   const { tab: tabParam, piece: pieceParam } = await props.searchParams;
   const piece: WritingKind = WRITING_KINDS.includes(pieceParam as WritingKind) ? (pieceParam as WritingKind) : "statement";
   if (!UUID.test(id)) notFound();
-  const result = await userDb(async (tx, userId) => ({ detail: await getJobDetail(tx, id), userId }));
+  const result = await userDb(async (tx, userId) => {
+    await closeExpiredJobs(tx);
+    return { detail: await getJobDetail(tx, id), userId };
+  });
   if (!result.detail) notFound();
   const { detail, userId } = result;
   const { job, history } = detail;

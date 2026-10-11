@@ -7,6 +7,7 @@ import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { adminDb, withUser, type JwtClaims } from "@/lib/db";
 import { consumeAiCall } from "@/lib/ai/usage";
+import { closeExpiredJobs } from "@/lib/db/queries";
 import { aiUsage, cvs, fitScores, jobDocuments, jobs, jobStatusHistory, profiles } from "@/lib/db/schema";
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -130,6 +131,34 @@ describe.skipIf(!ready)("row level security", { timeout: 30_000 }, () => {
       tx.update(jobStatusHistory).set({ changedAt: new Date() }).where(eq(jobStatusHistory.jobId, job.id)).returning(),
     );
     expect(other).toHaveLength(0);
+  });
+
+  it("clears the date applied when a job moves back to Saved", async () => {
+    const [job] = await withUser(a, (tx) => tx.insert(jobs).values({ title: "Undo job", status: "submitted" }).returning());
+    expect(job.submittedAt).toBeInstanceOf(Date);
+    const [back] = await withUser(a, (tx) => tx.update(jobs).set({ status: "saved" }).where(eq(jobs.id, job.id)).returning());
+    expect(back.submittedAt).toBeNull();
+  });
+
+  it("closes expired jobs still to apply for, once, and only the owner's", async () => {
+    const [expired] = await withUser(a, (tx) =>
+      tx.insert(jobs).values({ title: "Expired job", closingDate: "2026-01-05" }).returning(),
+    );
+    const [applied] = await withUser(a, (tx) =>
+      tx.insert(jobs).values({ title: "Applied expired job", closingDate: "2026-01-05", status: "submitted" }).returning(),
+    );
+    const [bJob] = await withUser(b, (tx) => tx.insert(jobs).values({ title: "B expired", closingDate: "2026-01-05" }).returning());
+
+    const closed = await withUser(a, (tx) => closeExpiredJobs(tx, "2026-01-06"));
+    expect(closed.map((r) => r.id)).toEqual([expired.id]);
+    const [stillApplied] = await withUser(a, (tx) => tx.select().from(jobs).where(eq(jobs.id, applied.id)));
+    expect(stillApplied.status).toBe("submitted");
+    const [bAfter] = await withUser(b, (tx) => tx.select().from(jobs).where(eq(jobs.id, bJob.id)));
+    expect(bAfter.status).toBe("saved");
+
+    // Reopened by hand, it stays open.
+    await withUser(a, (tx) => tx.update(jobs).set({ status: "saved" }).where(eq(jobs.id, expired.id)));
+    expect(await withUser(a, (tx) => closeExpiredJobs(tx, "2026-01-06"))).toHaveLength(0);
   });
 
   it("keeps CVs private, allows one default, and links jobs only to the owner's CVs", async () => {

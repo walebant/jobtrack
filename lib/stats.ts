@@ -1,5 +1,5 @@
-import { JOB_STATUSES, type JobStatus } from "@/lib/jobs/stages";
-import { APPLIED_STATUSES } from "@/lib/jobs/status";
+import { progressOf } from "@/lib/jobs/progress";
+import { PICKABLE_STATUSES, normaliseStatus, type JobStatus } from "@/lib/jobs/stages";
 
 // Everything on the Stats page, worked out from the user's own jobs.
 
@@ -9,22 +9,19 @@ export type StatsJob = {
   band: string;
   cvName: string | null;
   score: number | null;
-  // Every stage the job has been in, from its history.
+  // Every stage the job has been in, oldest first, from its history.
   reached: JobStatus[];
 };
 
-const SHORTLISTED = new Set<JobStatus>(["shortlisted", "interview", "offer"]);
-
-function everReached(job: StatsJob, stages: Set<JobStatus>) {
-  return stages.has(job.status) || job.reached.some((s) => stages.has(s));
-}
-
+// Stages count on the corrected path: moving a job back undoes the stages above
+// it, so a mistaken click on "Offer" stops counting once it is put right.
 export function isApplied(job: StatsJob) {
-  return job.submittedAt !== null || everReached(job, APPLIED_STATUSES);
+  return job.submittedAt !== null || progressOf(job).furthest >= 1;
 }
-export const isShortlisted = (job: StatsJob) => everReached(job, SHORTLISTED);
-export const hadInterview = (job: StatsJob) => everReached(job, new Set(["interview", "offer"]));
-export const gotOffer = (job: StatsJob) => everReached(job, new Set(["offer"]));
+// Shortlisted means invited to interview.
+export const isShortlisted = (job: StatsJob) => progressOf(job).furthest >= 2;
+export const hadInterview = isShortlisted;
+export const gotOffer = (job: StatsJob) => progressOf(job).furthest >= 3;
 
 export function rate(part: number, whole: number): number | null {
   return whole ? Math.round((part / whole) * 100) : null;
@@ -98,8 +95,8 @@ export function computeStats(jobs: StatsJob[], now: Date) {
   const scored = jobs.filter((j) => j.score !== null);
   const avgScore = scored.length ? Math.round((scored.reduce((n, j) => n + j.score!, 0) / scored.length) * 10) / 10 : null;
 
-  const byStage = Object.fromEntries(JOB_STATUSES.map((s) => [s, 0])) as Record<JobStatus, number>;
-  for (const j of jobs) byStage[j.status]++;
+  const byStage = Object.fromEntries(PICKABLE_STATUSES.map((s) => [s, 0])) as Record<(typeof PICKABLE_STATUSES)[number], number>;
+  for (const j of jobs) byStage[normaliseStatus(j.status) as keyof typeof byStage]++;
 
   return {
     tracked: jobs.length,
@@ -112,7 +109,6 @@ export function computeStats(jobs: StatsJob[], now: Date) {
     scoredCount: scored.length,
     funnel: [
       { label: "Applied", count: applied.length },
-      { label: "Shortlisted", count: shortlisted },
       { label: "Interview", count: interviews },
       { label: "Offer", count: offers },
     ],

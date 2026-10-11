@@ -1,4 +1,4 @@
-import { JOB_STATUSES, type JobStatus } from "./stages";
+import { PICKABLE_STATUSES, normaliseStatus, type JobStatus } from "./stages";
 
 // Sorting for the pipeline table. Each column has a natural first direction
 // (best fit first, soonest closing first, newest first, A to Z, earliest stage
@@ -27,7 +27,8 @@ function nullsLast<V>(a: V | null, b: V | null, cmp: (x: V, y: V) => number): nu
 }
 
 const newestFirst = (a: Sortable, b: Sortable) => b.createdAt.getTime() - a.createdAt.getTime();
-const stageIndex = (s: JobStatus | undefined) => (s ? JOB_STATUSES.indexOf(s) : JOB_STATUSES.length);
+const STAGE_ORDER: readonly JobStatus[] = PICKABLE_STATUSES;
+const stageIndex = (s: JobStatus | undefined) => (s ? STAGE_ORDER.indexOf(normaliseStatus(s)) : STAGE_ORDER.length);
 const text = (s: string | undefined) => (s ?? "").trim();
 
 export function sortJobs<T extends Sortable>(list: T[], sort: JobSort, dir: SortDir = "natural"): T[] {

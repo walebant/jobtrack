@@ -1,6 +1,6 @@
 import { BarList, ChartCard, ColumnChart, DataTable, StatTile, type BarRow } from "@/components/charts";
 import { Button } from "@/components/ui/button";
-import { JOB_STATUSES } from "@/lib/jobs/stages";
+import { PICKABLE_STATUSES, type JobStatus } from "@/lib/jobs/stages";
 import { STAGE_GROUPS, STATUS_LABEL, inStageGroup, type StageGroup } from "@/lib/jobs/status";
 import type { RateRow, Stats } from "@/lib/stats";
 
@@ -12,7 +12,7 @@ function rateRows(rows: RateRow[]): BarRow[] {
     value: r.rate ?? 0,
     valueLabel: pct(r.rate),
     note: `${r.shortlisted} of ${r.applied}`,
-    tooltip: `${r.label}: ${r.shortlisted} of ${r.applied} applications shortlisted (${pct(r.rate)})`,
+    tooltip: `${r.label}: ${r.shortlisted} of ${r.applied} applications invited to interview (${pct(r.rate)})`,
   }));
 }
 
@@ -21,7 +21,7 @@ function rateTable(rows: RateRow[], first: string) {
 }
 
 // Which pipeline tab a stage lives in, for the "Jobs by stage" links.
-function groupOf(status: (typeof JOB_STATUSES)[number]): StageGroup {
+function groupOf(status: JobStatus): StageGroup {
   return (["active", "applied", "offers", "closed"] as StageGroup[]).find((g) => inStageGroup(status, g)) ?? "all";
 }
 
@@ -35,7 +35,7 @@ export function StatsView({ s }: { s: Stats }) {
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
         <StatTile label="Jobs tracked" value={String(s.tracked)} />
         <StatTile label="Applications sent" value={String(s.applied)} />
-        <StatTile label="Shortlist rate" value={pct(s.shortlistRate)} note={s.applied ? `${s.shortlisted} of ${s.applied} applications` : "No applications yet"} />
+        <StatTile label="Shortlist rate" value={pct(s.shortlistRate)} note={s.applied ? `${s.shortlisted} of ${s.applied} invited to interview` : "No applications yet"} />
         <StatTile label="Interviews" value={String(s.interviews)} />
         <StatTile label="Offers" value={String(s.offers)} />
         <StatTile
@@ -87,7 +87,7 @@ export function StatsView({ s }: { s: Stats }) {
           )}
         </ChartCard>
 
-        <ChartCard title="Shortlist rate by band" hint="Of applications sent, the share shortlisted or further" table={rateTable(s.byBand, "Band")}>
+        <ChartCard title="Shortlist rate by band" hint="Of applications sent, the share invited to interview" table={rateTable(s.byBand, "Band")}>
           {s.byBand.length ? <BarList label="Shortlist rate by band" max={100} rows={rateRows(s.byBand)} /> : <NoApplications />}
         </ChartCard>
 
@@ -102,11 +102,11 @@ export function StatsView({ s }: { s: Stats }) {
         <ChartCard
           title="Where your jobs are now"
           hint="Every tracked job by its current stage"
-          table={<DataTable head={["Stage", "Jobs"]} rows={JOB_STATUSES.map((st) => [STATUS_LABEL[st], s.byStage[st]])} />}
+          table={<DataTable head={["Stage", "Jobs"]} rows={PICKABLE_STATUSES.map((st) => [STATUS_LABEL[st], s.byStage[st]])} />}
         >
           <BarList
             label="Jobs by current stage"
-            rows={JOB_STATUSES.map((st) => ({
+            rows={PICKABLE_STATUSES.map((st) => ({
               label: STATUS_LABEL[st],
               value: s.byStage[st],
               valueLabel: String(s.byStage[st]),

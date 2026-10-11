@@ -46,6 +46,8 @@ describe("closingDateMatters", () => {
     expect(closingDateMatters("submitted")).toBe(false);
     expect(closingDateMatters("interview")).toBe(false);
     expect(closingDateMatters("withdrawn")).toBe(false);
+    expect(closingDateMatters("closed")).toBe(false);
+    expect(closingDateMatters("rejected")).toBe(false);
   });
 });
 

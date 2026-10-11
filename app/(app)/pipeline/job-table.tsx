@@ -12,13 +12,13 @@ const SOURCE_LABEL = { paste: "Advert", alert: "Alert email", manual: "Manual", 
 
 export type View = { stage: StageGroup; sort: JobSort; dir: SortDir };
 
-export function pipelineHref({ stage, sort, dir }: View) {
-  const q = new URLSearchParams();
-  if (stage !== "all") q.set("stage", stage);
-  if (sort !== "fit") q.set("sort", sort);
-  if (dir !== "natural") q.set("dir", dir);
-  const s = q.toString();
-  return s ? `/pipeline?${s}` : "/pipeline";
+// Every part of the view is spelled out, so a link always wins over the remembered view.
+export function viewQuery({ stage, sort, dir }: View) {
+  return new URLSearchParams({ stage, sort, dir }).toString();
+}
+
+export function pipelineHref(view: View) {
+  return `/pipeline?${viewQuery(view)}`;
 }
 
 // Each column's first-click order, in plain words and as an aria-sort value.

@@ -64,6 +64,20 @@
       "when": 1791486322665,
       "tag": "0008_sector_questions",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1791721618837,
+      "tag": "0009_stage_cleanup",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1791722060562,
+      "tag": "0010_history_dedupe",
+      "breakpoints": true
     }
   ]
 }

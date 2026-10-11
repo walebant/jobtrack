@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { EmptyState } from "@/components/empty-state";
 import { Button } from "@/components/ui/button";
-import { getStatsJobs } from "@/lib/db/queries";
+import { closeExpiredJobs, getStatsJobs } from "@/lib/db/queries";
 import { userDb } from "@/lib/db/user";
 import { computeStats } from "@/lib/stats";
 import { StatsView } from "./stats-view";
@@ -11,7 +11,10 @@ export const metadata: Metadata = { title: "Stats · Job Search Tracker" };
 
 export default async function StatsPage() {
   const now = new Date();
-  const jobs = await userDb((tx) => getStatsJobs(tx));
+  const jobs = await userDb(async (tx) => {
+    await closeExpiredJobs(tx);
+    return getStatsJobs(tx);
+  });
   if (jobs.length === 0) {
     return (
       <EmptyState

@@ -1,27 +1,29 @@
-import { JOB_STATUSES, type JobStatus } from "@/lib/jobs/stages";
+import { JOB_STATUSES, PICKABLE_STATUSES, type JobStatus } from "@/lib/jobs/stages";
 import { daysLeft } from "./closing";
 
 export const STATUS_LABEL: Record<JobStatus, string> = {
   saved: "Saved",
-  applying: "Applying",
+  applying: "Saved", // retired: reads as Saved
   submitted: "Submitted",
-  shortlisted: "Shortlisted",
+  shortlisted: "Interview", // retired: shortlisting means being invited to interview
   interview: "Interview",
   offer: "Offer",
   rejected: "Rejected",
   withdrawn: "Withdrawn",
+  closed: "Closed",
 };
 
-export function isJobStatus(value: unknown): value is JobStatus {
-  return typeof value === "string" && (JOB_STATUSES as readonly string[]).includes(value);
+// Only stages people can pick; retired values are refused.
+export function isJobStatus(value: unknown): value is (typeof PICKABLE_STATUSES)[number] {
+  return typeof value === "string" && (PICKABLE_STATUSES as readonly string[]).includes(value);
 }
 
 // Stages after an application has gone in.
 export const APPLIED_STATUSES = new Set<JobStatus>(["submitted", "shortlisted", "interview", "offer", "rejected"]);
 
-// Closing dates only matter before applying.
+// Closing dates only matter while a job is still to apply for.
 export function closingDateMatters(status: JobStatus) {
-  return !APPLIED_STATUSES.has(status) && status !== "withdrawn";
+  return status === "saved" || status === "applying";
 }
 
 /* ---------- Pipeline groups ---------- */
@@ -31,7 +33,7 @@ export const STAGE_GROUPS = {
   active: { label: "To apply", statuses: ["saved", "applying"] },
   applied: { label: "Applied", statuses: ["submitted", "shortlisted", "interview"] },
   offers: { label: "Offers", statuses: ["offer"] },
-  closed: { label: "Closed", statuses: ["rejected", "withdrawn"] },
+  closed: { label: "Closed", statuses: ["rejected", "withdrawn", "closed"] },
 } as const satisfies Record<string, { label: string; statuses: readonly JobStatus[] }>;
 export type StageGroup = keyof typeof STAGE_GROUPS;
 

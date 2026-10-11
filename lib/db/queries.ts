@@ -1,4 +1,5 @@
-import { and, asc, count, desc, eq, isNull, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, inArray, isNull, lt, notExists, sql } from "drizzle-orm";
+import { todayUk } from "@/lib/dates";
 import { listCvs, pickCv } from "@/lib/cvs";
 import type { JobStatus } from "@/lib/jobs/stages";
 import type { Tx } from "./index";
@@ -80,7 +81,10 @@ export async function getStatsJobs(tx: Tx) {
     .from(jobs)
     .where(isNull(jobs.inbox));
   const extra = new Map(rows.map((r) => [r.id, r]));
-  const history = await tx.select({ jobId: jobStatusHistory.jobId, status: jobStatusHistory.status }).from(jobStatusHistory);
+  const history = await tx
+    .select({ jobId: jobStatusHistory.jobId, status: jobStatusHistory.status })
+    .from(jobStatusHistory)
+    .orderBy(asc(jobStatusHistory.changedAt));
   const reached = new Map<string, JobStatus[]>();
   for (const h of history) reached.set(h.jobId, [...(reached.get(h.jobId) ?? []), h.status]);
   const allCvs = await listCvs(tx);
@@ -138,4 +142,25 @@ export async function getJobDetail(tx: Tx, id: string) {
 export async function hasUsableCv(tx: Tx) {
   const [row] = await tx.select({ n: count() }).from(cvs).where(sql`btrim(${cvs.cvText}) <> ''`);
   return row.n > 0;
+}
+
+// Jobs still to apply for whose closing date has passed move to Closed. A job
+// that has been closed before is left alone, so reopening one by hand sticks.
+export async function closeExpiredJobs(tx: Tx, today: string = todayUk()) {
+  const closedBefore = tx
+    .select({ one: sql`1` })
+    .from(jobStatusHistory)
+    .where(and(eq(jobStatusHistory.jobId, jobs.id), eq(jobStatusHistory.status, "closed")));
+  return tx
+    .update(jobs)
+    .set({ status: "closed" })
+    .where(
+      and(
+        isNull(jobs.inbox),
+        inArray(jobs.status, ["saved", "applying"]),
+        lt(jobs.closingDate, today),
+        notExists(closedBefore),
+      ),
+    )
+    .returning({ id: jobs.id });
 }
